@@ -9,6 +9,10 @@
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{4C7EE63E-9BCD-4DBA-A0D3-075D3DBB2597}</ProjectGuid>
@@ -28,6 +32,11 @@
     <UseOfAtl>false</UseOfAtl>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -36,6 +45,10 @@
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
   </ImportGroup>
@@ -55,11 +68,17 @@
     <ExtensionsToDeleteOnClean>*.dll%3b*.obj%3b*.ilk%3b*.pdb%3b*.tlb%3b*.tli%3b*.tlh%3b*.tmp%3b*.rsp%3b*.bat%3b$(TargetPath)</ExtensionsToDeleteOnClean>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Configuration)\bin\</OutDir>
+    <IntDir>$(SolutionDir)$(Configuration)\evicam\</IntDir>
+    <ExtensionsToDeleteOnClean>*.dll%3b*.obj%3b*.ilk%3b*.pdb%3b*.tlb%3b*.tli%3b*.tlh%3b*.tmp%3b*.rsp%3b*.bat%3b$(TargetPath)</ExtensionsToDeleteOnClean>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_lib\mswud;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;NOPCH;__WXMSW__;__WXDEBUG__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;NOPCH;__WXMSW__;__WXDEBUG__;ENABLE_YUNET_FACE_DETECTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -154,7 +173,8 @@ if %ERRORLEVEL% LEQ 1 exit 0
 	if not exist $(TargetDir)%%x copy $(CVPATH)\build\x86\vc12\bin\%%x $(TargetDir)
 )
 
-if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sources\data\haarcascades\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -162,7 +182,7 @@ if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sou
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_x64_lib\mswud;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;NOPCH;__WXMSW__;__WXDEBUG__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;NOPCH;__WXMSW__;__WXDEBUG__;ENABLE_YUNET_FACE_DETECTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -258,14 +278,15 @@ if %ERRORLEVEL% LEQ 1 exit 0
 	if not exist $(TargetDir)%%x copy $(CVPATH)\build\x64\vc15\bin\%%x $(TargetDir)
 )
 
-if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sources\data\haarcascades\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_lib\mswu;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;ENABLE_YUNET_FACE_DETECTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
@@ -357,15 +378,16 @@ if %ERRORLEVEL% LEQ 1 exit 0
 	if not exist $(TargetDir)%%x copy $(CVPATH)\build\x86\vc12\bin\%%x $(TargetDir)
 )
 
-if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sources\data\haarcascades\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
 
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_x64_lib\mswu;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_x64_dll\mswu;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;WXUSINGDLL;ENABLE_YUNET_FACE_DETECTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
@@ -440,7 +462,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
     <Link>
       <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
-      <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc_x64_lib;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc_x64_dll;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
       <UACUIAccess>false</UACUIAccess>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -458,7 +480,10 @@ if %ERRORLEVEL% LEQ 1 exit 0
 	if not exist $(TargetDir)%%x copy $(CVPATH)\build\x64\vc15\bin\%%x $(TargetDir)
 )
 
-if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sources\data\haarcascades\haarcascade_frontalface_default.xml" $(TargetDir)
+xcopy "$(WXWIN)\lib\vc_x64_dll\wx*.dll" $(TargetDir) /D /Y /I
+
+if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
+if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
 
 </Command>
     </PostBuildEvent>
@@ -545,6 +570,10 @@ if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sou
     </ProjectReference>
     <ProjectReference Include="..\wxutil\wxutil.vcxproj">
       <Project>{ef4cba03-871c-48ce-998d-66f326b8a99a}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <ProjectReference Include="..\simplelog\simplelog.vcxproj">
+      <Project>{5ff96c8f-40f9-46cd-980c-0afbb932ac2e}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>

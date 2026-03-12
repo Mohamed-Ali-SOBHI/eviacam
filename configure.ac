@@ -200,6 +200,28 @@ if test "x$WITH_DEPENDENCIES_CHECK" = "xyes"; then
 		OPENCV_LIBS=" -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_objdetect -lopencv_video"
 	fi
 fi
+
+WITH_YUNET_FACE_DETECTOR="no"
+if test "x$WITH_DEPENDENCIES_CHECK" = "xyes"; then
+	if test "$OPENCVVERSION" -ge 4005004; then
+		AC_CHECK_LIB([opencv_dnn], [main],
+			[
+				WITH_YUNET_FACE_DETECTOR="yes"
+				OPENCV_LIBS="$OPENCV_LIBS -lopencv_dnn"
+				AC_DEFINE([ENABLE_YUNET_FACE_DETECTOR], [], [Enable YuNet face detector backend])
+			],
+			[AC_MSG_NOTICE([YuNet face detector disabled: opencv_dnn not found])]
+		)
+	else
+		AC_MSG_NOTICE([YuNet face detector disabled: OpenCV 4.5.4 or newer is required])
+	fi
+fi
+
+if test "x$WITH_YUNET_FACE_DETECTOR" = "xyes"; then
+	AC_MSG_NOTICE([YuNet face detector backend... yes])
+else
+	AC_MSG_NOTICE([YuNet face detector backend... no])
+fi
 # -----------------       opencv  --------------------
 
 # Checks for header files.

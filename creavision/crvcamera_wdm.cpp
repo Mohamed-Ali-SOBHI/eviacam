@@ -14,6 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /////////////////////////////////////////////////////////////////////////////
+#if defined(WIN32) && !defined(EVIACAM_WINDOWS_CV_ONLY)
+
 #include "crvcamera_wdm.h"
 
 #include <sys/timeb.h>
@@ -121,3 +123,5 @@ const char* CCameraWDM::GetDeviceName (unsigned int id)
 	if ((int) id>= GetNumDevices()) return NULL;
 	return g_deviceNames[id];
 }
+
+#endif

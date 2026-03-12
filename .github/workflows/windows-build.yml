@@ -1,0 +1,50 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/scripts/**"
+      - ".github/workflows/windows-build.yml"
+      - "creavision/**"
+      - "simplelog/**"
+      - "src/**"
+      - "win32/**"
+      - "wxcamwindow/**"
+      - "wxutil/**"
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Download official Windows dependencies
+        shell: pwsh
+        run: .github\scripts\setup-windows-deps.ps1
+
+      - name: Build eViacam
+        shell: pwsh
+        run: >
+          msbuild win32\eviacam.sln
+          /m
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:PlatformToolset=v143
+
+      - name: Package build output
+        shell: pwsh
+        run: .github\scripts\package-windows-build.ps1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eviacam-windows-x64
+          path: ${{ env.ARTIFACT_ZIP }}

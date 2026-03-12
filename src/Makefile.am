@@ -39,6 +39,10 @@ dist_noinst_DATA= \
 	gui.rc \
 	resources/eviacam.ico
 
+dist_pkgdata_DATA = \
+	data/haarcascade_frontalface_default.xml \
+	data/face_detection_yunet_2023mar.onnx
+
 nobase_dist_pkgdata_DATA = \
 	resources/clickWindowBitmap.xrc \
 	resources/clickWindowTextVertical.xrc \

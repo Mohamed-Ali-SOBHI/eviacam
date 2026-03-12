@@ -8,6 +8,8 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //THE SOFTWARE.
 
+#if defined(WIN32) && !defined(EVIACAM_WINDOWS_CV_ONLY)
+
 //#define DEBUG 1
 //#define _DEBUG 1
 
@@ -2348,7 +2350,9 @@ HRESULT videoInput::routeCrossbar(ICaptureGraphBuilder2 **ppBuild, IBaseFilter *
 		if(verbose)printf("SETUP: You are a webcam or snazzy firewire cam! No Crossbar needed\n");
 		return hr;
 	}
-	
+
 	return hr;
 }
+
+#endif
    

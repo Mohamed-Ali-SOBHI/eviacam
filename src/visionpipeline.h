@@ -22,10 +22,15 @@
 #include "configbase.h"
 #include "visiblenormroi.h"
 #include "waittime.h"
-#include "opencv2/objdetect/objdetect.hpp"
+
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
+
+#include <memory>
 
 #include <wx/thread.h>
 
+class FaceDetectionBackend;
 
 class CVisionPipeline : public CConfigBase, wxThread
 {
@@ -63,7 +68,7 @@ public:
 	int GetCpuUsage ();
 	void SetCpuUsage (int value);
 
-	bool IsTrackFaceAllowed () { return (!m_faceCascade.empty()); }	
+	bool IsTrackFaceAllowed () { return m_faceDetectionAvailable; }
 
 	CVisibleNormROI* GetTrackAreaControl () { return &m_trackArea; }
 
@@ -84,8 +89,10 @@ private:
 		
 	cv::Mat m_imgThread;
 	cv::Mat m_imgPrev, m_imgCurr;
+	cv::Mat m_imgPrevColor;
 	
-	cv::CascadeClassifier m_faceCascade;
+	std::unique_ptr<FaceDetectionBackend> m_faceDetector;
+	bool m_faceDetectionAvailable;
 	int m_threadPeriod;
 	
 	wxCriticalSection m_imageCopyMutex;
