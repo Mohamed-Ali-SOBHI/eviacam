@@ -31,20 +31,59 @@ jobs:
         run: .github\scripts\setup-windows-deps.ps1
 
       - name: Build eViacam
+        id: build
         shell: pwsh
+        continue-on-error: true
         run: >
           msbuild win32\eviacam.sln
           /m
           /p:Configuration=Release
           /p:Platform=x64
           /p:PlatformToolset=v143
+          /fl
+          /flp:logfile=msbuild.log;verbosity=normal
+
+      - name: Summarize build log
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path msbuild.log)) {
+            "msbuild.log not found." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 0
+          }
+
+          $matches = Select-String -Path msbuild.log -Pattern ': error ',': fatal error ',': warning ' | Select-Object -First 120
+          if ($matches) {
+            "## MSBuild diagnostics" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "```text" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            $matches | ForEach-Object { $_.Line } | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "```" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          else {
+            "No error lines matched in msbuild.log." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
 
       - name: Package build output
+        if: steps.build.outcome == 'success'
         shell: pwsh
         run: .github\scripts\package-windows-build.ps1
 
       - name: Upload artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: eviacam-windows-x64
           path: ${{ env.ARTIFACT_ZIP }}
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eviacam-msbuild-log
+          path: msbuild.log
+          if-no-files-found: ignore
+
+      - name: Fail if build failed
+        if: steps.build.outcome != 'success'
+        shell: pwsh
+        run: exit 1
