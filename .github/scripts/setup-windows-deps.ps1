@@ -112,8 +112,25 @@ New-Item -ItemType Directory -Force -Path $opencvExtractRoot | Out-Null
 
 $opencvRoot = Find-OpenCvRoot -SearchRoot $opencvExtractRoot
 
+$configHeader = Join-Path $repoRoot "config.h"
+$versionHeader = Join-Path $repoRoot "src\version.h"
+
+@"
+#pragma once
+#define VERSION "2.1.4"
+#define COPYRIGHT "(C) 2008-19"
+#define PUBLISHER "Cesar Mauri Loba"
+#define ENABLE_UPDATES_CHECK 1
+"@ | Set-Content -Path $configHeader -Encoding ascii
+
+@"
+#pragma once
+"@ | Set-Content -Path $versionHeader -Encoding ascii
+
 Write-Host "WXWIN=$wxRoot"
 Write-Host "CVPATH=$opencvRoot"
+Write-Host "Generated $configHeader"
+Write-Host "Generated $versionHeader"
 
 "WXWIN=$wxRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 "CVPATH=$opencvRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
