@@ -386,7 +386,7 @@ if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)da
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc_x64_dll\mswu;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc14x_x64_dll\mswu;$(WXWIN)\include;$(CVPATH)\build\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;WXUSINGDLL;ENABLE_YUNET_FACE_DETECTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -462,7 +462,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
     <Link>
       <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
-      <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc_x64_dll;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc14x_x64_dll;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
       <UACUIAccess>false</UACUIAccess>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -480,7 +480,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 	if not exist $(TargetDir)%%x copy $(CVPATH)\build\x64\vc15\bin\%%x $(TargetDir)
 )
 
-xcopy "$(WXWIN)\lib\vc_x64_dll\wx*.dll" $(TargetDir) /D /Y /I
+xcopy "$(WXWIN)\lib\vc14x_x64_dll\wx*.dll" $(TargetDir) /D /Y /I
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)

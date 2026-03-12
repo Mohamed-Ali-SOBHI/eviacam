@@ -52,10 +52,18 @@ function Find-WxRoot {
         [Parameter(Mandatory = $true)][string] $SearchRoot
     )
 
+    if (
+        (Test-Path (Join-Path $SearchRoot "include\wx\version.h")) -and
+        (Test-Path (Join-Path $SearchRoot "lib\vc14x_x64_dll")) -and
+        (Test-Path (Join-Path $SearchRoot "locale"))
+    ) {
+        return $SearchRoot
+    }
+
     $candidate = Get-ChildItem -Path $SearchRoot -Directory -Recurse |
         Where-Object {
             (Test-Path (Join-Path $_.FullName "include\wx\version.h")) -and
-            (Test-Path (Join-Path $_.FullName "lib\vc_x64_dll")) -and
+            (Test-Path (Join-Path $_.FullName "lib\vc14x_x64_dll")) -and
             (Test-Path (Join-Path $_.FullName "locale"))
         } |
         Select-Object -First 1
