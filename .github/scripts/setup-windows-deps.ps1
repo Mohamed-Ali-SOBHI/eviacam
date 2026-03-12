@@ -6,9 +6,9 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $depsRoot = Join-Path $repoRoot "deps"
 $downloadsRoot = Join-Path $depsRoot "downloads"
 $extractRoot = Join-Path $depsRoot "extract"
-$wxRoot = Join-Path $depsRoot "wxWidgets"
+$wxExtractRoot = Join-Path $extractRoot "wxWidgets"
 
-New-Item -ItemType Directory -Force -Path $downloadsRoot, $extractRoot, $wxRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $downloadsRoot, $extractRoot | Out-Null
 
 $sevenZip = Get-Command 7z -ErrorAction Stop
 
@@ -47,24 +47,47 @@ function Find-OpenCvRoot {
     return $candidate.FullName
 }
 
-$wxVersion = "3.2.7"
-$wxTag = "v3.2.7"
-$wxHeadersArchive = Join-Path $downloadsRoot "wxWidgets-${wxVersion}-headers.7z"
+function Find-WxRoot {
+    param(
+        [Parameter(Mandatory = $true)][string] $SearchRoot
+    )
+
+    $candidate = Get-ChildItem -Path $SearchRoot -Directory -Recurse |
+        Where-Object {
+            (Test-Path (Join-Path $_.FullName "include\wx\version.h")) -and
+            (Test-Path (Join-Path $_.FullName "lib\vc_x64_dll")) -and
+            (Test-Path (Join-Path $_.FullName "locale"))
+        } |
+        Select-Object -First 1
+
+    if (-not $candidate) {
+        throw "Unable to locate an extracted wxWidgets root under $SearchRoot"
+    }
+
+    return $candidate.FullName
+}
+
+$wxVersion = "3.2.10"
+$wxTag = "v3.2.10"
+$wxSourceArchive = Join-Path $downloadsRoot "wxWidgets-${wxVersion}.zip"
 $wxDevArchive = Join-Path $downloadsRoot "wxMSW-${wxVersion}_vc14x_x64_Dev.7z"
+$wxReleaseDllArchive = Join-Path $downloadsRoot "wxMSW-${wxVersion}_vc14x_x64_ReleaseDLL.7z"
 
-Download-File -Url "https://github.com/wxWidgets/wxWidgets/releases/download/$wxTag/wxWidgets-${wxVersion}-headers.7z" -Destination $wxHeadersArchive
+Download-File -Url "https://github.com/wxWidgets/wxWidgets/releases/download/$wxTag/wxWidgets-${wxVersion}.zip" -Destination $wxSourceArchive
 Download-File -Url "https://github.com/wxWidgets/wxWidgets/releases/download/$wxTag/wxMSW-${wxVersion}_vc14x_x64_Dev.7z" -Destination $wxDevArchive
+Download-File -Url "https://github.com/wxWidgets/wxWidgets/releases/download/$wxTag/wxMSW-${wxVersion}_vc14x_x64_ReleaseDLL.7z" -Destination $wxReleaseDllArchive
 
-& $sevenZip.Source x $wxHeadersArchive "-o$wxRoot" -y | Out-Null
-& $sevenZip.Source x $wxDevArchive "-o$wxRoot" -y | Out-Null
-
-if (-not (Test-Path (Join-Path $wxRoot "include\wx\version.h"))) {
-    throw "wxWidgets headers were not extracted correctly into $wxRoot"
+if (Test-Path $wxExtractRoot) {
+    Remove-Item -Path $wxExtractRoot -Recurse -Force
 }
 
-if (-not (Test-Path (Join-Path $wxRoot "lib\vc_x64_dll"))) {
-    throw "wxWidgets development libraries were not extracted correctly into $wxRoot"
-}
+New-Item -ItemType Directory -Force -Path $wxExtractRoot | Out-Null
+
+Expand-Archive -Path $wxSourceArchive -DestinationPath $wxExtractRoot -Force
+& $sevenZip.Source x $wxDevArchive "-o$wxExtractRoot" -y | Out-Null
+& $sevenZip.Source x $wxReleaseDllArchive "-o$wxExtractRoot" -y | Out-Null
+
+$wxRoot = Find-WxRoot -SearchRoot $wxExtractRoot
 
 $opencvVersion = "4.6.0"
 $opencvArchive = Join-Path $downloadsRoot "opencv-${opencvVersion}-vc14_vc15.exe"
