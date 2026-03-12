@@ -47,20 +47,21 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          $summaryPath = $env:GITHUB_STEP_SUMMARY
           if (-not (Test-Path msbuild.log)) {
-            "msbuild.log not found." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            'msbuild.log not found.' | Tee-Object -FilePath $summaryPath -Append
             exit 0
           }
 
           $matches = Select-String -Path msbuild.log -Pattern ': error ',': fatal error ',': warning ' | Select-Object -First 120
           if ($matches) {
-            "## MSBuild diagnostics" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            "```text" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            $matches | ForEach-Object { $_.Line } | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            "```" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            '## MSBuild diagnostics' | Tee-Object -FilePath $summaryPath -Append
+            '```text' | Tee-Object -FilePath $summaryPath -Append
+            $matches | ForEach-Object { $_.Line } | Tee-Object -FilePath $summaryPath -Append
+            '```' | Tee-Object -FilePath $summaryPath -Append
           }
           else {
-            "No error lines matched in msbuild.log." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            'No error lines matched in msbuild.log.' | Tee-Object -FilePath $summaryPath -Append
           }
 
       - name: Package build output
