@@ -85,6 +85,7 @@ private:
 	bool m_enableWhenFaceDetected;
 	bool m_isRunning;
 	bool m_useLandmarkTracking;
+	bool m_useDetectionDrivenTracking;
 	bool m_hasPreviousFaceAnchor;
 	cv::Point2f m_previousFaceAnchor;
 
