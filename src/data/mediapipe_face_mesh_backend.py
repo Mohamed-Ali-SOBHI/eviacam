@@ -1,3 +1,4 @@
+import struct
 import sys
 
 import cv2
@@ -69,6 +70,18 @@ def build_face_result(detection, detector, width, height):
     return [x, y, w, h, score] + key_points
 
 
+def read_exact(stream, size):
+    chunks = []
+    remaining = size
+    while remaining > 0:
+        chunk = stream.read(remaining)
+        if not chunk:
+            return None
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
 def main():
     face_detection = mp.solutions.face_detection.FaceDetection(
         model_selection=1,
@@ -81,21 +94,39 @@ def main():
     stdout.write("READY\n")
     stdout.flush()
 
+    frame_index = 0
+
     try:
         while True:
-            line = stdin.readline()
-            if not line:
+            header = read_exact(stdin, 4)
+            if header is None:
                 break
 
+            frame_index += 1
+
             try:
-                payload = bytes.fromhex(line.decode("ascii").strip())
-            except ValueError:
-                stdout.write("NONE\n")
-                stdout.flush()
-                continue
+                (payload_size,) = struct.unpack("<I", header)
+            except struct.error:
+                print("invalid payload header", file=sys.stderr, flush=True)
+                break
+
+            payload = read_exact(stdin, payload_size)
+            if payload is None:
+                print(
+                    f"frame {frame_index}: short read, expected {payload_size} bytes",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                break
 
             frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None:
+                if frame_index <= 5:
+                    print(
+                        f"frame {frame_index}: imdecode failed payload_bytes={len(payload)}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 stdout.write("NONE\n")
                 stdout.flush()
                 continue

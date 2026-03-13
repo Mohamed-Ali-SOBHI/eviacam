@@ -51,6 +51,7 @@
 #include <wx/process.h>
 #include <wx/stopwatch.h>
 #include <wx/stdpaths.h>
+#include <wx/stream.h>
 #include <wx/txtstrm.h>
 #include <wx/utils.h>
 
@@ -93,24 +94,29 @@ const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
 const long MEDIAPIPE_RESPONSE_TIMEOUT_MS = 5000;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
-static wxString HexEncode(const std::vector<uchar>& data)
-{
-	static const char kHexDigits[] = "0123456789abcdef";
-	wxString encoded;
-	encoded.reserve(data.size() * 2);
-
-	for (size_t i = 0; i < data.size(); ++i) {
-		const unsigned char value = data[i];
-		encoded += wxChar(kHexDigits[(value >> 4) & 0x0F]);
-		encoded += wxChar(kHexDigits[value & 0x0F]);
-	}
-
-	return encoded;
-}
-
 static std::string ToUtf8(const wxString& value)
 {
 	return std::string(value.mb_str(wxConvUTF8));
+}
+
+static bool WriteAll(wxOutputStream& stream, const void* data, size_t size)
+{
+	const unsigned char* current =
+		static_cast<const unsigned char*>(data);
+	size_t remaining = size;
+
+	while (remaining > 0) {
+		stream.Write(current, remaining);
+		const size_t written = static_cast<size_t>(stream.LastWrite());
+		if (written == 0) {
+			return false;
+		}
+
+		current += written;
+		remaining -= written;
+	}
+
+	return stream.IsOk();
 }
 
 static bool safeHaarCascadeLoad(cv::CascadeClassifier& c, const char* fileName)
@@ -436,10 +442,16 @@ public:
 			return false;
 		}
 
-		const wxString encodedPayload = HexEncode(encodedFrame);
-		wxTextOutputStream textOutput(*m_childStdin);
-		textOutput.WriteString(encodedPayload);
-		textOutput.WriteString(wxT("\n"));
+		const uint32_t frameSize = static_cast<uint32_t>(encodedFrame.size());
+		if (!WriteAll(*m_childStdin, &frameSize, sizeof(frameSize)) ||
+			!WriteAll(*m_childStdin, encodedFrame.data(), encodedFrame.size())) {
+			SLOG_WARNING(
+				"MediaPipe backend stdin short write: frameSize=%u lastWrite=%llu",
+				frameSize,
+				static_cast<unsigned long long>(m_childStdin->LastWrite()));
+			return false;
+		}
+
 		m_childStdin->Sync();
 
 		if (!m_childStdin->IsOk()) {
