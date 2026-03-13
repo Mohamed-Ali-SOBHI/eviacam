@@ -1,4 +1,3 @@
-import struct
 import sys
 
 import cv2
@@ -70,18 +69,6 @@ def build_face_result(detection, detector, width, height):
     return [x, y, w, h, score] + key_points
 
 
-def read_exact(stream, size):
-    chunks = []
-    remaining = size
-    while remaining > 0:
-        chunk = stream.read(remaining)
-        if not chunk:
-            return None
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
-
-
 def main():
     face_detection = mp.solutions.face_detection.FaceDetection(
         model_selection=1,
@@ -96,14 +83,16 @@ def main():
 
     try:
         while True:
-            header = read_exact(stdin, 4)
-            if header is None:
+            line = stdin.readline()
+            if not line:
                 break
 
-            (payload_size,) = struct.unpack("<I", header)
-            payload = read_exact(stdin, payload_size)
-            if payload is None:
-                break
+            try:
+                payload = bytes.fromhex(line.decode("ascii").strip())
+            except ValueError:
+                stdout.write("NONE\n")
+                stdout.flush()
+                continue
 
             frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
             if frame is None:

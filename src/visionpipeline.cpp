@@ -93,6 +93,21 @@ const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
 const long MEDIAPIPE_RESPONSE_TIMEOUT_MS = 5000;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
+static wxString HexEncode(const std::vector<uchar>& data)
+{
+	static const char kHexDigits[] = "0123456789abcdef";
+	wxString encoded;
+	encoded.reserve(data.size() * 2);
+
+	for (size_t i = 0; i < data.size(); ++i) {
+		const unsigned char value = data[i];
+		encoded.push_back(kHexDigits[(value >> 4) & 0x0F]);
+		encoded.push_back(kHexDigits[value & 0x0F]);
+	}
+
+	return encoded;
+}
+
 static std::string ToUtf8(const wxString& value)
 {
 	return std::string(value.mb_str(wxConvUTF8));
@@ -421,9 +436,10 @@ public:
 			return false;
 		}
 
-		const uint32_t frameSize = static_cast<uint32_t>(encodedFrame.size());
-		m_childStdin->Write(&frameSize, sizeof(frameSize));
-		m_childStdin->Write(encodedFrame.data(), encodedFrame.size());
+		const wxString encodedPayload = HexEncode(encodedFrame);
+		wxTextOutputStream textOutput(*m_childStdin);
+		textOutput.WriteString(encodedPayload);
+		textOutput.WriteString(wxT("\n"));
 		m_childStdin->Sync();
 
 		if (!m_childStdin->IsOk()) {
