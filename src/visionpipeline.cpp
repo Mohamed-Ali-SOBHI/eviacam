@@ -101,8 +101,8 @@ static wxString HexEncode(const std::vector<uchar>& data)
 
 	for (size_t i = 0; i < data.size(); ++i) {
 		const unsigned char value = data[i];
-		encoded.push_back(kHexDigits[(value >> 4) & 0x0F]);
-		encoded.push_back(kHexDigits[value & 0x0F]);
+		encoded += wxChar(kHexDigits[(value >> 4) & 0x0F]);
+		encoded += wxChar(kHexDigits[value & 0x0F]);
 	}
 
 	return encoded;
