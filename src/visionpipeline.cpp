@@ -285,8 +285,8 @@ static cv::Rect BuildTrackAreaFromLandmarks(
 	const Point2f leftEye = landmarks[1];
 	const Point2f nose = landmarks[2];
 	const Point2f eyeCenter = (rightEye + leftEye) * 0.5f;
-	const float eyeDistance = std::max(20.0f, norm(rightEye - leftEye));
-	const float noseDistance = std::max(12.0f, norm(nose - eyeCenter));
+	const float eyeDistance = std::max(20.0f, static_cast<float>(norm(rightEye - leftEye)));
+	const float noseDistance = std::max(12.0f, static_cast<float>(norm(nose - eyeCenter)));
 
 	float width = eyeDistance * 2.8f;
 	float height = std::max(width * 1.18f, noseDistance * 5.0f);
