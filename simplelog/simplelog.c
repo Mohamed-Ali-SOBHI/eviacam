@@ -72,6 +72,7 @@ void SLOG_DECLSPEC slog_stream_callback (slog_priority_t prio, const char* fmt, 
 		fprintf (g_slog_stream_file, "%s: ", slog_get_priority_name(prio));
 		vfprintf (g_slog_stream_file, fmt, ap);
 		fprintf (g_slog_stream_file, "\n");
+		fflush(g_slog_stream_file);
 	}
 }
 
