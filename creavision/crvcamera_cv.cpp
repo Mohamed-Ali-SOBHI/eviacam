@@ -126,7 +126,12 @@ CCameraCV::~CCameraCV(void)
 bool CCameraCV::DoOpen ()
 {
 	if (m_pCvCapture->isOpened()) return true;	// Already opened
+
+#if defined(WIN32)
+	m_pCvCapture->open(m_Id, cv::CAP_DSHOW);
+#else
 	m_pCvCapture->open(m_Id);
+#endif
 	if (!m_pCvCapture->isOpened()) return false;
 	
 	// Try to set capture parameters although not always works
@@ -173,7 +178,11 @@ int CCameraCV::GetNumDevices()
 
 		// Detect number of connected devices
 		for (i= 0; i< MAX_CV_DEVICES; ++i) {
+#if defined(WIN32)
+			if (!tmpCapture.open(i, cv::CAP_DSHOW)) break;
+#else
 			if (!tmpCapture.open(i)) break;
+#endif
 
 			tmpCapture.release();
 
