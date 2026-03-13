@@ -577,18 +577,20 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 		(m_faceDetector.get() != NULL && std::string(m_faceDetector->GetName()) == "YuNet");
 	if (m_useLandmarkTracking) {
 		SetCpuUsage(CVisionPipeline::CPU_HIGHEST);
+		SLOG_INFO("Using synchronous landmark-driven tracking with YuNet");
 	}
-
-	// Create and start face detection thread
-	if (Create() == wxTHREAD_NO_ERROR) {
+	else {
+		// Create and start face detection thread
+		if (Create() == wxTHREAD_NO_ERROR) {
 #if defined(WIN32)
-		// On linux this ends up calling setpriority syscall which changes
-		// the priority of the whole process :-( (see wxWidgets threadpsx.cpp)
-		// TODO: implement it using pthreads
-		SetPriority(WXTHREAD_MIN_PRIORITY);
+			// On linux this ends up calling setpriority syscall which changes
+			// the priority of the whole process :-( (see wxWidgets threadpsx.cpp)
+			// TODO: implement it using pthreads
+			SetPriority(WXTHREAD_MIN_PRIORITY);
 #endif
-		m_isRunning = true;
-		Run();
+			m_isRunning = true;
+			Run();
+		}
 	}
 }
 
@@ -894,6 +896,10 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		{
 			wxCriticalSectionLocker lock(m_imageCopyMutex);
 
+			if (m_useLandmarkTracking) {
+				ComputeFaceTrackArea(detectFrame);
+			}
+
 			NewTracker(image, xVel, yVel);
 
 			// Store current image as previous
@@ -902,7 +908,7 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		}
 
 		// Notifies face detection thread when needed
-		if (m_trackFace && m_faceDetectionAvailable) {
+		if (!m_useLandmarkTracking && m_trackFace && m_faceDetectionAvailable) {
 			m_trackArea.SetDegradation(255 - m_trackAreaTimeout.PercentagePassed() * 255 / 100);
 			m_condition.Signal();
 		}
