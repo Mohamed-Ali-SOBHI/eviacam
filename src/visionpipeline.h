@@ -27,6 +27,7 @@
 #include <opencv2/core/types.hpp>
 
 #include <memory>
+#include <vector>
 
 #include <wx/thread.h>
 
@@ -101,6 +102,7 @@ private:
 
 	// Face location detection
 	cv::Rect m_faceLocation;
+	std::vector<cv::Point2f> m_faceLandmarks;
 	int m_faceLocationStatus; // 0 -> not available, 1 -> available
 
 	enum { NUM_CORNERS = 20 };

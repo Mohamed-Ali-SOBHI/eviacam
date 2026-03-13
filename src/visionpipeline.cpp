@@ -56,6 +56,14 @@
 
 using namespace cv;
 
+enum { MIN_ACTIVE_TRACK_CORNERS = 6 };
+
+struct FaceDetectionResult {
+	cv::Rect box;
+	float score;
+	std::vector<cv::Point2f> landmarks;
+};
+
 class FaceDetectionBackend {
 public:
 	virtual ~FaceDetectionBackend() {}
@@ -64,7 +72,7 @@ public:
 		const cv::Mat& image,
 		const cv::Rect& currentTrackArea,
 		bool preferCurrentFace,
-		cv::Rect& selectedFace) = 0;
+		FaceDetectionResult& selectedFace) = 0;
 };
 
 namespace {
@@ -74,11 +82,6 @@ const float YUNET_NMS_THRESHOLD = 0.3f;
 const int YUNET_TOP_K = 5000;
 const int YUNET_MAX_INPUT_SIDE = 640;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
-
-struct FaceDetectionResult {
-	cv::Rect box;
-	float score;
-};
 
 static std::string ToUtf8(const wxString& value)
 {
@@ -216,11 +219,53 @@ static void FilterLowerFaceCorners(std::vector<Point2f>& corners, const cv::Rect
 		corners.end());
 }
 
+static void CollectLandmarkCorners(
+	const cv::Mat& image,
+	const std::vector<Point2f>& landmarks,
+	const cv::Rect& trackArea,
+	std::vector<Point2f>& corners)
+{
+	corners.clear();
+	if (image.empty() || landmarks.empty() || trackArea.area() <= 0) return;
+
+	const size_t landmarkCount = std::min<size_t>(3, landmarks.size());
+	const float maxCornerY = trackArea.y + trackArea.height * 0.58f;
+
+	for (size_t i = 0; i < landmarkCount; ++i) {
+		const Point2f& landmark = landmarks[i];
+		if (landmark.y > maxCornerY) continue;
+
+		cv::Rect landmarkWindow = ClampRect(
+			cv::Rect(
+				cvRound(landmark.x) - 18,
+				cvRound(landmark.y) - 18,
+				36,
+				36),
+			image.size());
+		if (landmarkWindow.width < 8 || landmarkWindow.height < 8) continue;
+
+		std::vector<Point2f> localCorners;
+		cv::Mat landmarkImage = image(landmarkWindow);
+		goodFeaturesToTrack(landmarkImage, localCorners, 6, 0.001, 2);
+
+		if (!localCorners.empty()) {
+			RefineCornersInRoi(landmarkImage, localCorners);
+			OffsetCorners(localCorners, landmarkWindow.x, landmarkWindow.y);
+			corners.insert(corners.end(), localCorners.begin(), localCorners.end());
+		}
+		else if (trackArea.contains(cv::Point(cvRound(landmark.x), cvRound(landmark.y)))) {
+			corners.push_back(landmark);
+		}
+	}
+
+	FilterLowerFaceCorners(corners, trackArea);
+}
+
 static bool SelectFaceDetection(
 	const std::vector<FaceDetectionResult>& detections,
 	const cv::Rect& currentTrackArea,
 	bool preferCurrentFace,
-	cv::Rect& selectedFace)
+	FaceDetectionResult& selectedFace)
 {
 	if (detections.empty()) return false;
 
@@ -256,7 +301,7 @@ static bool SelectFaceDetection(
 		}
 	}
 
-	selectedFace = detections[selectedIndex].box;
+	selectedFace = detections[selectedIndex];
 	return true;
 }
 
@@ -290,7 +335,7 @@ public:
 		const cv::Mat& image,
 		const cv::Rect& currentTrackArea,
 		bool preferCurrentFace,
-		cv::Rect& selectedFace)
+		FaceDetectionResult& selectedFace)
 	{
 		cv::Mat gray;
 		if (image.channels() == 1) gray = image;
@@ -367,7 +412,7 @@ public:
 		const cv::Mat& image,
 		const cv::Rect& currentTrackArea,
 		bool preferCurrentFace,
-		cv::Rect& selectedFace)
+		FaceDetectionResult& selectedFace)
 	{
 		if (image.empty()) return false;
 
@@ -400,6 +445,16 @@ public:
 			FaceDetectionResult result;
 			result.box = face;
 			result.score = score;
+			for (int landmarkIndex = 0; landmarkIndex < 5; ++landmarkIndex) {
+				const float landmarkX = detections.at<float>(row, 4 + landmarkIndex * 2);
+				const float landmarkY = detections.at<float>(row, 5 + landmarkIndex * 2);
+				const Point2f landmark(
+					static_cast<float>(landmarkX / scale),
+					static_cast<float>(landmarkY / scale));
+				if (face.contains(cv::Point(cvRound(landmark.x), cvRound(landmark.y)))) {
+					result.landmarks.push_back(landmark);
+				}
+			}
 			results.push_back(result);
 		}
 
@@ -544,9 +599,10 @@ void CVisionPipeline::ComputeFaceTrackArea(const cv::Mat& image)
 	cv::Rect currentTrackArea;
 	m_trackArea.GetBoxImg(image, currentTrackArea);
 
-	cv::Rect detectedFace;
+	FaceDetectionResult detectedFace;
 	if (m_faceDetector->Detect(image, currentTrackArea, IsFaceDetected(), detectedFace)) {
-		m_faceLocation = detectedFace;
+		m_faceLocation = detectedFace.box;
+		m_faceLandmarks = detectedFace.landmarks;
 		m_faceLocationStatus = 1;
 
 		m_waitTime.Reset();
@@ -572,6 +628,7 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 {
 	cv::Rect2f trackArea;
 	bool updateFeatures = false;
+	std::vector<Point2f> detectedLandmarks;
 
 	xVel = 0;
 	yVel = 0;
@@ -579,6 +636,8 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	// Face location has been updated?
 	if (m_faceLocationStatus) {
 		trackArea = m_faceLocation;
+		detectedLandmarks = m_faceLandmarks;
+		m_faceLandmarks.clear();
 		m_faceLocationStatus = 0;
 		updateFeatures = true;
 	}
@@ -588,7 +647,7 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		trackArea = box;
 				
         // Need to update corners?
-		if (m_corners.size()< NUM_CORNERS) updateFeatures = true;
+		if (m_corners.size() < MIN_ACTIVE_TRACK_CORNERS) updateFeatures = true;
 	}	
 
 	const cv::Rect trackAreaRoi = ClampRect(trackArea, image.size());
@@ -601,29 +660,37 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		#define QUALITY_LEVEL  0.001   // 0.01
 		#define MIN_DISTANTE 2
 
-		const cv::Rect featuresTrackArea = BuildFeatureTrackArea(trackAreaRoi, m_imgPrev.size());
-		if (featuresTrackArea.area() <= 0) {
-			m_corners.clear();
-			return;
+		CollectLandmarkCorners(m_imgPrev, detectedLandmarks, trackAreaRoi, m_corners);
+
+		if (m_corners.size() > NUM_CORNERS) {
+			m_corners.resize(NUM_CORNERS);
 		}
 
-		cv::Mat prevImg = m_imgPrev(featuresTrackArea);
+		if (m_corners.empty()) {
+			const cv::Rect featuresTrackArea = BuildFeatureTrackArea(trackAreaRoi, m_imgPrev.size());
+			if (featuresTrackArea.area() <= 0) {
+				m_corners.clear();
+				return;
+			}
 
-		goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
+			cv::Mat prevImg = m_imgPrev(featuresTrackArea);
 
-		if (m_corners.empty() && featuresTrackArea != trackAreaRoi) {
-			prevImg = m_imgPrev(trackAreaRoi);
 			goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
-			if (!m_corners.empty()) {
+
+			if (m_corners.empty() && featuresTrackArea != trackAreaRoi) {
+				prevImg = m_imgPrev(trackAreaRoi);
+				goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
+				if (!m_corners.empty()) {
+					RefineCornersInRoi(prevImg, m_corners);
+					OffsetCorners(m_corners, trackAreaRoi.x, trackAreaRoi.y);
+					FilterLowerFaceCorners(m_corners, trackAreaRoi);
+				}
+			}
+			else {
 				RefineCornersInRoi(prevImg, m_corners);
-				OffsetCorners(m_corners, trackAreaRoi.x, trackAreaRoi.y);
+				OffsetCorners(m_corners, featuresTrackArea.x, featuresTrackArea.y);
 				FilterLowerFaceCorners(m_corners, trackAreaRoi);
 			}
-		}
-		else {
-			RefineCornersInRoi(prevImg, m_corners);
-			OffsetCorners(m_corners, featuresTrackArea.x, featuresTrackArea.y);
-			FilterLowerFaceCorners(m_corners, trackAreaRoi);
 		}
 	}
 
