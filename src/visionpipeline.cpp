@@ -400,7 +400,7 @@ public:
 		Stop();
 	}
 
-	virtual const char* GetName() const { return "MediaPipe Face Mesh"; }
+	virtual const char* GetName() const { return "MediaPipe Face Detection"; }
 
 	virtual bool Detect(
 		const cv::Mat& image,
@@ -781,7 +781,7 @@ static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& av
 	}
 
 	SLOG_WARNING(
-		"MediaPipe Face Mesh backend unavailable and fallback is disabled: %s",
+		"MediaPipe Face Detection backend unavailable and fallback is disabled: %s",
 		ToUtf8(mediaPipeError).c_str());
 	return std::unique_ptr<FaceDetectionBackend>();
 }
@@ -813,7 +813,7 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 	const std::string backendName =
 		(m_faceDetector.get() != NULL) ? m_faceDetector->GetName() : std::string();
 	m_useLandmarkTracking = UsesSynchronousLandmarkTracking(m_faceDetector.get());
-	if (backendName == "MediaPipe Face Mesh") {
+	if (backendName == "MediaPipe Face Detection") {
 		// Keep the worker responsive enough to re-anchor the face frequently.
 		SetCpuUsage(CVisionPipeline::CPU_HIGH);
 	}
@@ -825,7 +825,7 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 			m_faceDetector->GetName());
 	}
 	else {
-		if (backendName == "MediaPipe Face Mesh") {
+		if (backendName == "MediaPipe Face Detection") {
 			SLOG_INFO(
 				"Using asynchronous landmark-seeded tracking with %s",
 				m_faceDetector->GetName());

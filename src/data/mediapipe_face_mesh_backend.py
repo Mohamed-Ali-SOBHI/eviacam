@@ -6,13 +6,6 @@ import mediapipe as mp
 import numpy as np
 
 
-RIGHT_EYE_INDEX = 33
-LEFT_EYE_INDEX = 263
-NOSE_INDEX = 1
-RIGHT_MOUTH_INDEX = 61
-LEFT_MOUTH_INDEX = 291
-
-
 def clamp(value, lower, upper):
     return max(lower, min(upper, value))
 
@@ -24,41 +17,35 @@ def scaled_point(landmark, width, height):
     )
 
 
-def build_face_result(face_landmarks, width, height):
-    xs = [clamp(landmark.x, 0.0, 1.0) for landmark in face_landmarks.landmark]
-    ys = [clamp(landmark.y, 0.0, 1.0) for landmark in face_landmarks.landmark]
+def build_face_result(detection, detector, width, height):
+    bbox = detection.location_data.relative_bounding_box
 
-    min_x = min(xs)
-    max_x = max(xs)
-    min_y = min(ys)
-    max_y = max(ys)
-
-    face_width = max_x - min_x
-    face_height = max_y - min_y
-
-    min_x = clamp(min_x - face_width * 0.14, 0.0, 1.0)
-    max_x = clamp(max_x + face_width * 0.14, 0.0, 1.0)
-    min_y = clamp(min_y - face_height * 0.22, 0.0, 1.0)
-    max_y = clamp(max_y + face_height * 0.12, 0.0, 1.0)
+    min_x = clamp(bbox.xmin, 0.0, 1.0)
+    min_y = clamp(bbox.ymin, 0.0, 1.0)
+    box_width = clamp(bbox.width, 0.0, 1.0 - min_x)
+    box_height = clamp(bbox.height, 0.0, 1.0 - min_y)
 
     x = int(round(min_x * (width - 1)))
     y = int(round(min_y * (height - 1)))
-    w = max(1, int(round((max_x - min_x) * width)))
-    h = max(1, int(round((max_y - min_y) * height)))
+    w = max(1, int(round(box_width * width)))
+    h = max(1, int(round(box_height * height)))
 
-    key_indices = [
-        RIGHT_EYE_INDEX,
-        LEFT_EYE_INDEX,
-        NOSE_INDEX,
-        RIGHT_MOUTH_INDEX,
-        LEFT_MOUTH_INDEX,
-    ]
+    score = detection.score[0] if detection.score else 0.0
+
     key_points = []
-    for index in key_indices:
-        px, py = scaled_point(face_landmarks.landmark[index], width, height)
+    key_names = [
+        detector.FaceKeyPoint.RIGHT_EYE,
+        detector.FaceKeyPoint.LEFT_EYE,
+        detector.FaceKeyPoint.NOSE_TIP,
+        detector.FaceKeyPoint.MOUTH_CENTER,
+        detector.FaceKeyPoint.MOUTH_CENTER,
+    ]
+    for key_name in key_names:
+        point = detector.get_key_point(detection, key_name)
+        px, py = scaled_point(point, width, height)
         key_points.extend((px, py))
 
-    return [x, y, w, h, 1.0] + key_points
+    return [x, y, w, h, score] + key_points
 
 
 def read_exact(stream, size):
@@ -74,12 +61,9 @@ def read_exact(stream, size):
 
 
 def main():
-    face_mesh = mp.solutions.face_mesh.FaceMesh(
-        static_image_mode=True,
-        max_num_faces=1,
-        refine_landmarks=True,
+    face_detection = mp.solutions.face_detection.FaceDetection(
+        model_selection=1,
         min_detection_confidence=0.1,
-        min_tracking_confidence=0.1,
     )
 
     stdout = sys.stdout
@@ -106,20 +90,23 @@ def main():
                 continue
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result = face_mesh.process(rgb_frame)
+            result = face_detection.process(rgb_frame)
 
-            if not result.multi_face_landmarks:
+            if not result.detections:
                 stdout.write("NONE\n")
                 stdout.flush()
                 continue
 
             face_result = build_face_result(
-                result.multi_face_landmarks[0], frame.shape[1], frame.shape[0]
+                result.detections[0],
+                mp.solutions.face_detection,
+                frame.shape[1],
+                frame.shape[0],
             )
             stdout.write("OK " + " ".join(str(value) for value in face_result) + "\n")
             stdout.flush()
     finally:
-        face_mesh.close()
+        face_detection.close()
 
 
 if __name__ == "__main__":
