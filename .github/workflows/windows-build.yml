@@ -34,14 +34,15 @@ jobs:
         id: build
         shell: pwsh
         continue-on-error: true
-        run: >
-          msbuild win32\eviacam.sln
-          /m
-          /p:Configuration=Release
-          /p:Platform=x64
-          /p:PlatformToolset=v143
-          /fl
-          /flp:logfile=msbuild.log;verbosity=normal
+        run: |
+          & msbuild `
+            'win32\eviacam.sln' `
+            '/m' `
+            '/p:Configuration=Release' `
+            '/p:Platform=x64' `
+            '/p:PlatformToolset=v143' `
+            '/fl' `
+            '/flp:logfile=msbuild.log;verbosity=normal'
 
       - name: Summarize build log
         if: always()

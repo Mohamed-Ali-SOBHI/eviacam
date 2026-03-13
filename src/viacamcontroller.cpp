@@ -228,8 +228,8 @@ CCamera* CViacamController::SetUpCamera()
 			}
 
 			wxSingleChoiceDialog choiceDlg(
-				NULL, _("Choose the camera to use"), _T("Enable Viacam"), strArray, 
-				(char**)NULL, wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
+				NULL, _("Choose the camera to use"), _T("Enable Viacam"), strArray,
+				static_cast<void**>(NULL), wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
 
 			if (choiceDlg.ShowModal ()!= wxID_OK) return NULL;
 

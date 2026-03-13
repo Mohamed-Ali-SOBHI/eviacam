@@ -56,6 +56,17 @@
 
 using namespace cv;
 
+class FaceDetectionBackend {
+public:
+	virtual ~FaceDetectionBackend() {}
+	virtual const char* GetName() const = 0;
+	virtual bool Detect(
+		const cv::Mat& image,
+		const cv::Rect& currentTrackArea,
+		bool preferCurrentFace,
+		cv::Rect& selectedFace) = 0;
+};
+
 namespace {
 
 const float YUNET_SCORE_THRESHOLD = 0.9f;
@@ -182,17 +193,6 @@ static bool SelectFaceDetection(
 	selectedFace = detections[selectedIndex].box;
 	return true;
 }
-
-class FaceDetectionBackend {
-public:
-	virtual ~FaceDetectionBackend() {}
-	virtual const char* GetName() const = 0;
-	virtual bool Detect(
-		const cv::Mat& image,
-		const cv::Rect& currentTrackArea,
-		bool preferCurrentFace,
-		cv::Rect& selectedFace) = 0;
-};
 
 class HaarFaceDetector : public FaceDetectionBackend {
 public:
@@ -370,11 +370,11 @@ static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& av
 
 	wxString haarPath;
 	wxString haarError;
-	std::unique_ptr<FaceDetectionBackend> backend = HaarFaceDetector::Create(haarPath, haarError);
-	if (backend.get() != NULL) {
-		SLOG_INFO("Using face detector backend: %s (%s)", backend->GetName(), ToUtf8(haarPath).c_str());
+	std::unique_ptr<FaceDetectionBackend> fallbackBackend = HaarFaceDetector::Create(haarPath, haarError);
+	if (fallbackBackend.get() != NULL) {
+		SLOG_INFO("Using face detector backend: %s (%s)", fallbackBackend->GetName(), ToUtf8(haarPath).c_str());
 		available = true;
-		return backend;
+		return fallbackBackend;
 	}
 
 	SLOG_WARNING("Haar face detector unavailable: %s", ToUtf8(haarError).c_str());

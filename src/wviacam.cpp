@@ -581,52 +581,53 @@ void WViacam::OnToolHelpClick( wxCommandEvent& event )
 	if (m_helpController== NULL) {
 		m_helpController= new wxHtmlHelpController(wxHF_DEFAULT_STYLE, this);
 		wxString path(eviacam::GetDataDir());
-			
-		switch(wxGetApp().GetController().GetLocale()->GetLanguage()) {		
-		case (wxLANGUAGE_CATALAN):
+		const int language = wxGetApp().GetController().GetLocale()->GetLanguage();
+
+		if (language == wxLANGUAGE_CATALAN) {
 			path+= _T("/help/ca/help.hhp");
-			break;
-		case (wxLANGUAGE_SPANISH):
-		case (wxLANGUAGE_SPANISH_ARGENTINA):
-		case (wxLANGUAGE_SPANISH_BOLIVIA):
-		case (wxLANGUAGE_SPANISH_CHILE):
-		case (wxLANGUAGE_SPANISH_COLOMBIA):
-		case (wxLANGUAGE_SPANISH_COSTA_RICA):
-		case (wxLANGUAGE_SPANISH_DOMINICAN_REPUBLIC):
-		case (wxLANGUAGE_SPANISH_ECUADOR):
-		case (wxLANGUAGE_SPANISH_EL_SALVADOR):
-		case (wxLANGUAGE_SPANISH_GUATEMALA):
-		case (wxLANGUAGE_SPANISH_HONDURAS):
-		case (wxLANGUAGE_SPANISH_MEXICAN):
-		case (wxLANGUAGE_SPANISH_MODERN):
-		case (wxLANGUAGE_SPANISH_NICARAGUA):
-		case (wxLANGUAGE_SPANISH_PANAMA):
-		case (wxLANGUAGE_SPANISH_PARAGUAY):
-		case (wxLANGUAGE_SPANISH_PERU):
-		case (wxLANGUAGE_SPANISH_PUERTO_RICO):
-		case (wxLANGUAGE_SPANISH_URUGUAY):
-		case (wxLANGUAGE_SPANISH_US):
-		case (wxLANGUAGE_SPANISH_VENEZUELA):
+		}
+		else if (
+			language == wxLANGUAGE_SPANISH ||
+			language == wxLANGUAGE_SPANISH_ARGENTINA ||
+			language == wxLANGUAGE_SPANISH_BOLIVIA ||
+			language == wxLANGUAGE_SPANISH_CHILE ||
+			language == wxLANGUAGE_SPANISH_COLOMBIA ||
+			language == wxLANGUAGE_SPANISH_COSTA_RICA ||
+			language == wxLANGUAGE_SPANISH_DOMINICAN_REPUBLIC ||
+			language == wxLANGUAGE_SPANISH_ECUADOR ||
+			language == wxLANGUAGE_SPANISH_EL_SALVADOR ||
+			language == wxLANGUAGE_SPANISH_GUATEMALA ||
+			language == wxLANGUAGE_SPANISH_HONDURAS ||
+			language == wxLANGUAGE_SPANISH_MEXICAN ||
+			language == wxLANGUAGE_SPANISH_MODERN ||
+			language == wxLANGUAGE_SPANISH_NICARAGUA ||
+			language == wxLANGUAGE_SPANISH_PANAMA ||
+			language == wxLANGUAGE_SPANISH_PARAGUAY ||
+			language == wxLANGUAGE_SPANISH_PERU ||
+			language == wxLANGUAGE_SPANISH_PUERTO_RICO ||
+			language == wxLANGUAGE_SPANISH_URUGUAY ||
+			language == wxLANGUAGE_SPANISH_US ||
+			language == wxLANGUAGE_SPANISH_VENEZUELA) {
 			path+= _T("/help/es/help.hhp");
-			break;
-		case (wxLANGUAGE_GERMAN):
-		case (wxLANGUAGE_GERMAN_AUSTRIAN):
-		case (wxLANGUAGE_GERMAN_BELGIUM):
-		case (wxLANGUAGE_GERMAN_LIECHTENSTEIN):
-		case (wxLANGUAGE_GERMAN_LUXEMBOURG):
-		case (wxLANGUAGE_GERMAN_SWISS):
+		}
+		else if (
+			language == wxLANGUAGE_GERMAN ||
+			language == wxLANGUAGE_GERMAN_AUSTRIAN ||
+			language == wxLANGUAGE_GERMAN_BELGIUM ||
+			language == wxLANGUAGE_GERMAN_LIECHTENSTEIN ||
+			language == wxLANGUAGE_GERMAN_LUXEMBOURG ||
+			language == wxLANGUAGE_GERMAN_SWISS) {
 			path+= _T("/help/de/help.hhp");
-			break;
-		case (wxLANGUAGE_GALICIAN):
+		}
+		else if (language == wxLANGUAGE_GALICIAN) {
 			path+= _T("/help/gl/help.hhp");
-			break;
-		case (wxLANGUAGE_RUSSIAN):
+		}
+		else if (language == wxLANGUAGE_RUSSIAN) {
 			path+= _T("/help/ru/help.hhp");
-			break;
-		default:
+		}
+		else {
 			path+= _T("/help/en/help.hhp");
-			break;
-		}		
+		}
 	
 		m_helpController->AddBook(path, false);
 	}
