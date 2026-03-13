@@ -145,9 +145,75 @@ static cv::Rect ClampRect(const cv::Rect& rect, const cv::Size& imageSize)
 	return rect & cv::Rect(0, 0, imageSize.width, imageSize.height);
 }
 
+static cv::Rect ClampRect(const cv::Rect2f& rect, const cv::Size& imageSize)
+{
+	return ClampRect(
+		cv::Rect(
+			cvFloor(rect.x),
+			cvFloor(rect.y),
+			cvCeil(rect.width),
+			cvCeil(rect.height)),
+		imageSize);
+}
+
 static cv::Point2f GetRectCenter(const cv::Rect& rect)
 {
 	return cv::Point2f(rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f);
+}
+
+static cv::Rect BuildFeatureTrackArea(const cv::Rect2f& trackArea, const cv::Size& imageSize)
+{
+	// Favor upper-face features (eyes/eyebrows/nose bridge) instead of the mouth.
+	cv::Rect featureArea = ClampRect(
+		cv::Rect2f(
+			trackArea.x + trackArea.width * 0.20f,
+			trackArea.y + trackArea.height * 0.10f,
+			trackArea.width * 0.60f,
+			trackArea.height * 0.30f),
+		imageSize);
+
+	if (featureArea.width >= 10 && featureArea.height >= 10) {
+		return featureArea;
+	}
+
+	return ClampRect(
+		cv::Rect2f(
+			trackArea.x + trackArea.width * 0.14f,
+			trackArea.y + trackArea.height * 0.08f,
+			trackArea.width * 0.72f,
+			trackArea.height * 0.44f),
+		imageSize);
+}
+
+static void RefineCornersInRoi(cv::Mat& image, std::vector<Point2f>& corners)
+{
+	if (corners.empty()) return;
+
+	TermCriteria termcrit(TermCriteria::COUNT | TermCriteria::EPS, 20, 0.03);
+	cornerSubPix(image, corners, Size(5, 5), Size(-1, -1), termcrit);
+}
+
+static void OffsetCorners(std::vector<Point2f>& corners, int x, int y)
+{
+	for (int i = 0; i < corners.size(); i++) {
+		corners[i].x += x;
+		corners[i].y += y;
+	}
+}
+
+static void FilterLowerFaceCorners(std::vector<Point2f>& corners, const cv::Rect& trackArea)
+{
+	if (corners.empty()) return;
+
+	const float maxCornerY = trackArea.y + trackArea.height * 0.62f;
+	corners.erase(
+		std::remove_if(
+			corners.begin(),
+			corners.end(),
+			[maxCornerY](const Point2f& point) {
+				return point.y > maxCornerY;
+			}),
+		corners.end());
 }
 
 static bool SelectFaceDetection(
@@ -445,12 +511,25 @@ wxThread::ExitCode CVisionPipeline::Entry()
 		unsigned long now = CTimeUtil::GetMiliCount();
 		if (now - ts1 >= (unsigned long) m_threadPeriod) {
 			ts1 = CTimeUtil::GetMiliCount();
-			if (m_imgPrevColor.empty()) continue;
-			m_imageCopyMutex.Enter();
-			m_imgPrevColor.copyTo(m_imgThread);
-			m_imageCopyMutex.Leave();
+			try {
+				if (m_imgPrevColor.empty()) continue;
 
-			ComputeFaceTrackArea(m_imgThread);
+				{
+					wxCriticalSectionLocker lock(m_imageCopyMutex);
+					m_imgPrevColor.copyTo(m_imgThread);
+				}
+
+				ComputeFaceTrackArea(m_imgThread);
+			}
+			catch (const cv::Exception& e) {
+				SLOG_WARNING("Face detection thread ignored OpenCV exception: %s", e.what());
+			}
+			catch (const std::exception& e) {
+				SLOG_WARNING("Face detection thread ignored exception: %s", e.what());
+			}
+			catch (...) {
+				SLOG_WARNING("Face detection thread ignored unknown exception");
+			}
 		}
 	}
 	return 0;
@@ -494,6 +573,9 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	cv::Rect2f trackArea;
 	bool updateFeatures = false;
 
+	xVel = 0;
+	yVel = 0;
+
 	// Face location has been updated?
 	if (m_faceLocationStatus) {
 		trackArea = m_faceLocation;
@@ -509,40 +591,39 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		if (m_corners.size()< NUM_CORNERS) updateFeatures = true;
 	}	
 
+	const cv::Rect trackAreaRoi = ClampRect(trackArea, image.size());
+	if (trackAreaRoi.area() <= 0) {
+		m_corners.clear();
+		return;
+	}
+
 	if (updateFeatures) {
-		// 
-		// Set smaller area to extract features to track
-		//
-		#define SMALL_AREA_RATIO 0.4f
-
-		cv::Rect2f featuresTrackArea;
-		featuresTrackArea.x = trackArea.x + 
-			trackArea.width * ((1.0f - SMALL_AREA_RATIO) / 2.0f);
-		featuresTrackArea.y = trackArea.y + 
-			trackArea.height * ((1.0f - SMALL_AREA_RATIO) / 2.0f);
-		featuresTrackArea.width = trackArea.width * SMALL_AREA_RATIO;
-		featuresTrackArea.height = trackArea.height * SMALL_AREA_RATIO;
-
-		//
-		// Find features to track
-		//
 		#define QUALITY_LEVEL  0.001   // 0.01
 		#define MIN_DISTANTE 2
 
-        cv::Mat prevImg = m_imgPrev(featuresTrackArea);
-		
-        goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
-        TermCriteria termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.03);
-        if (m_corners.size()) {
-		    cornerSubPix(prevImg, m_corners, Size(5, 5), Size(-1, -1), termcrit);
-        }
-		
-		//
-		// Update features location
-		//
-		for (int i = 0; i < m_corners.size(); i++) {
-			m_corners[i].x += featuresTrackArea.x;
-			m_corners[i].y += featuresTrackArea.y;
+		const cv::Rect featuresTrackArea = BuildFeatureTrackArea(trackAreaRoi, m_imgPrev.size());
+		if (featuresTrackArea.area() <= 0) {
+			m_corners.clear();
+			return;
+		}
+
+		cv::Mat prevImg = m_imgPrev(featuresTrackArea);
+
+		goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
+
+		if (m_corners.empty() && featuresTrackArea != trackAreaRoi) {
+			prevImg = m_imgPrev(trackAreaRoi);
+			goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
+			if (!m_corners.empty()) {
+				RefineCornersInRoi(prevImg, m_corners);
+				OffsetCorners(m_corners, trackAreaRoi.x, trackAreaRoi.y);
+				FilterLowerFaceCorners(m_corners, trackAreaRoi);
+			}
+		}
+		else {
+			RefineCornersInRoi(prevImg, m_corners);
+			OffsetCorners(m_corners, featuresTrackArea.x, featuresTrackArea.y);
+			FilterLowerFaceCorners(m_corners, trackAreaRoi);
 		}
 	}
 
@@ -553,13 +634,13 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	//
 	// Track corners
 	//
-    cv::Mat prevImg = m_imgPrev(trackArea);
-    cv::Mat currImg = m_imgCurr(trackArea);
+    cv::Mat prevImg = m_imgPrev(trackAreaRoi);
+    cv::Mat currImg = m_imgCurr(trackAreaRoi);
 
 	// Update corners location for the new ROI
 	for (int i = 0; i < m_corners.size(); i++) {
-		m_corners[i].x -= trackArea.x;
-		m_corners[i].y -= trackArea.y;
+		m_corners[i].x -= trackAreaRoi.x;
+		m_corners[i].y -= trackAreaRoi.y;
 	}
 
 	vector<Point2f> new_corners;
@@ -580,15 +661,15 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	for (int i = 0; i< m_corners.size(); i++) {
 		if (status[i] &&
 			m_corners[i].x >= 0 &&
-			m_corners[i].x < trackArea.width &&
+			m_corners[i].x < trackAreaRoi.width &&
 			m_corners[i].y >= 0 &&
-			m_corners[i].y < trackArea.height) {
+			m_corners[i].y < trackAreaRoi.height) {
 			dx += m_corners[i].x - new_corners[i].x;
 			dy += m_corners[i].y - new_corners[i].y;
 
 			// Update corner location, relative to full `image`
-			new_corners[i].x += trackArea.x;
-			new_corners[i].y += trackArea.y;
+			new_corners[i].x += trackAreaRoi.x;
+			new_corners[i].y += trackAreaRoi.y;
 
 			// Save new corner location
 			m_corners[valid_corners++] = new_corners[i];
@@ -604,7 +685,8 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		yVel = 2.0 * -dy;
 	}
 	else {
-		xVel = yVel = 0;
+		xVel = 0;
+		yVel = 0;
 	}
 
 	//
@@ -642,14 +724,15 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		}
 		
 		// TODO: fine grained synchronization
-		m_imageCopyMutex.Enter();
+		{
+			wxCriticalSectionLocker lock(m_imageCopyMutex);
 
-		NewTracker(image, xVel, yVel);
+			NewTracker(image, xVel, yVel);
 
-		// Store current image as previous
-		cv::swap(m_imgPrev, m_imgCurr);
-		m_imgPrevColor = detectFrame;
-		m_imageCopyMutex.Leave();
+			// Store current image as previous
+			cv::swap(m_imgPrev, m_imgCurr);
+			m_imgPrevColor = detectFrame;
+		}
 
 		// Notifies face detection thread when needed
 		if (m_trackFace && m_faceDetectionAvailable) {
@@ -665,9 +748,23 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		else
 			return true;
 	}
+	catch (const cv::Exception& e) {
+		SLOG_ERR("OpenCV exception in ProcessImage: %s", e.what());
+		xVel = 0;
+		yVel = 0;
+		return true;
+	}
 	catch (const std::exception& e) {
-		SLOG_ERR("Exception: %s\n", e.what());
-		exit(1);
+		SLOG_ERR("Exception in ProcessImage: %s", e.what());
+		xVel = 0;
+		yVel = 0;
+		return true;
+	}
+	catch (...) {
+		SLOG_ERR("Unknown exception in ProcessImage");
+		xVel = 0;
+		yVel = 0;
+		return true;
 	}
 
 	return false;
