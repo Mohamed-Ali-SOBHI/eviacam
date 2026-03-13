@@ -175,6 +175,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
+if not exist $(TargetDir)mediapipe_face_mesh_backend.py copy "$(ProjectDir)data\mediapipe_face_mesh_backend.py" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -280,6 +281,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
+if not exist $(TargetDir)mediapipe_face_mesh_backend.py copy "$(ProjectDir)data\mediapipe_face_mesh_backend.py" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -380,6 +382,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
+if not exist $(TargetDir)mediapipe_face_mesh_backend.py copy "$(ProjectDir)data\mediapipe_face_mesh_backend.py" $(TargetDir)
 
 </Command>
     </PostBuildEvent>
@@ -484,6 +487,7 @@ xcopy "$(WXWIN)\lib\vc14x_x64_dll\wx*.dll" $(TargetDir) /D /Y /I
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_yunet_2023mar.onnx copy "$(ProjectDir)data\face_detection_yunet_2023mar.onnx" $(TargetDir)
+if not exist $(TargetDir)mediapipe_face_mesh_backend.py copy "$(ProjectDir)data\mediapipe_face_mesh_backend.py" $(TargetDir)
 
 </Command>
     </PostBuildEvent>

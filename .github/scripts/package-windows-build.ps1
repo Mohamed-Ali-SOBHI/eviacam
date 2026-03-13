@@ -33,7 +33,8 @@ $requiredFiles = @(
     "wxmsw32u_core_vc14x_x64.dll",
     "opencv_world460.dll",
     "haarcascade_frontalface_default.xml",
-    "face_detection_yunet_2023mar.onnx"
+    "face_detection_yunet_2023mar.onnx",
+    "mediapipe_face_mesh_backend.py"
 )
 
 $missingFiles = @($requiredFiles | Where-Object { -not (Test-Path (Join-Path $artifactRoot $_)) })

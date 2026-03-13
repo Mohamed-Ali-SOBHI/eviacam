@@ -25,6 +25,7 @@
 #include "simplelog.h"
 
 #include <opencv2/core/core_c.h>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgproc/imgproc_c.h>
@@ -37,14 +38,20 @@
 #include <math.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <wx/filename.h>
 #include <wx/msgdlg.h>
+#include <wx/process.h>
+#include <wx/stopwatch.h>
 #include <wx/stdpaths.h>
+#include <wx/txtstrm.h>
+#include <wx/utils.h>
 
 // Constants
 #define DEFAULT_TRACK_AREA_WIDTH_PERCENT 0.50f
@@ -81,6 +88,8 @@ const float YUNET_SCORE_THRESHOLD = 0.9f;
 const float YUNET_NMS_THRESHOLD = 0.3f;
 const int YUNET_TOP_K = 5000;
 const int YUNET_MAX_INPUT_SIDE = 640;
+const int MEDIAPIPE_MAX_INPUT_SIDE = 640;
+const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
 static std::string ToUtf8(const wxString& value)
@@ -352,6 +361,246 @@ static bool SelectFaceDetection(
 	return true;
 }
 
+class MediaPipeFaceMeshDetector : public FaceDetectionBackend {
+public:
+	static std::unique_ptr<FaceDetectionBackend> Create(wxString& scriptPath, wxString& error)
+	{
+		const wxString backendScript = FindFirstExistingFile(
+			GetPackagedFileCandidates(wxT("mediapipe_face_mesh_backend.py")));
+		if (backendScript.IsEmpty()) {
+			error = wxT("Could not find mediapipe_face_mesh_backend.py");
+			return std::unique_ptr<FaceDetectionBackend>();
+		}
+
+		std::vector<wxString> commandCandidates;
+#if defined(__WXMSW__)
+		commandCandidates.push_back(wxString::Format(wxT("python \"%s\""), backendScript.c_str()));
+		commandCandidates.push_back(wxString::Format(wxT("py -3 \"%s\""), backendScript.c_str()));
+#else
+		commandCandidates.push_back(wxString::Format(wxT("python3 \"%s\""), backendScript.c_str()));
+		commandCandidates.push_back(wxString::Format(wxT("python \"%s\""), backendScript.c_str()));
+#endif
+
+		wxString lastError = wxT("Could not start Python MediaPipe backend");
+		for (size_t i = 0; i < commandCandidates.size(); ++i) {
+			std::unique_ptr<MediaPipeFaceMeshDetector> detector(new MediaPipeFaceMeshDetector());
+			if (detector->Start(commandCandidates[i], lastError)) {
+				scriptPath = backendScript;
+				error.clear();
+				return std::unique_ptr<FaceDetectionBackend>(detector.release());
+			}
+		}
+
+		error = lastError;
+		return std::unique_ptr<FaceDetectionBackend>();
+	}
+
+	virtual ~MediaPipeFaceMeshDetector()
+	{
+		Stop();
+	}
+
+	virtual const char* GetName() const { return "MediaPipe Face Mesh"; }
+
+	virtual bool Detect(
+		const cv::Mat& image,
+		const cv::Rect& currentTrackArea,
+		bool preferCurrentFace,
+		FaceDetectionResult& selectedFace)
+	{
+		wxUnusedVar(currentTrackArea);
+		wxUnusedVar(preferCurrentFace);
+
+		if (image.empty() || m_process == NULL || m_childStdin == NULL || m_childStdout == NULL) {
+			return false;
+		}
+
+		double scale = 1.0;
+		cv::Mat resized = image;
+		const int maxSide = std::max(image.cols, image.rows);
+		if (maxSide > MEDIAPIPE_MAX_INPUT_SIDE) {
+			scale = static_cast<double>(MEDIAPIPE_MAX_INPUT_SIDE) / static_cast<double>(maxSide);
+			cv::resize(image, resized, cv::Size(), scale, scale, cv::INTER_LINEAR);
+		}
+
+		std::vector<uchar> encodedFrame;
+		std::vector<int> encodeParams;
+		encodeParams.push_back(cv::IMWRITE_JPEG_QUALITY);
+		encodeParams.push_back(85);
+		if (!cv::imencode(".jpg", resized, encodedFrame, encodeParams)) {
+			return false;
+		}
+
+		const uint32_t frameSize = static_cast<uint32_t>(encodedFrame.size());
+		m_childStdin->Write(&frameSize, sizeof(frameSize));
+		m_childStdin->Write(encodedFrame.data(), encodedFrame.size());
+		m_childStdin->Sync();
+
+		if (!m_childStdin->IsOk()) {
+			SLOG_WARNING("MediaPipe backend stdin is not writable");
+			return false;
+		}
+
+		wxString responseLine;
+		if (!ReadLineWithTimeout(responseLine, 1500)) {
+			DrainErrorStream();
+			return false;
+		}
+		DrainErrorStream();
+
+		return ParseResponse(responseLine, scale, image.size(), selectedFace);
+	}
+
+private:
+	MediaPipeFaceMeshDetector()
+		: m_process(NULL)
+		, m_pid(0)
+		, m_childStdin(NULL)
+		, m_childStdout(NULL)
+		, m_childStderr(NULL)
+	{
+	}
+
+	bool Start(const wxString& command, wxString& error)
+	{
+		Stop();
+
+		m_process = new wxProcess();
+		m_process->Redirect();
+
+		int executeFlags = wxEXEC_ASYNC;
+#if defined(__WXMSW__) && defined(wxEXEC_HIDE_CONSOLE)
+		executeFlags |= wxEXEC_HIDE_CONSOLE;
+#endif
+		m_pid = wxExecute(command, executeFlags, m_process);
+		if (m_pid == 0) {
+			delete m_process;
+			m_process = NULL;
+			error = wxString::Format(wxT("Failed to execute: %s"), command.c_str());
+			return false;
+		}
+
+		m_childStdin = m_process->GetOutputStream();
+		m_childStdout = m_process->GetInputStream();
+		m_childStderr = m_process->GetErrorStream();
+
+		if (m_childStdin == NULL || m_childStdout == NULL) {
+			error = wxT("MediaPipe backend process streams are unavailable");
+			Stop();
+			return false;
+		}
+
+		wxString readyLine;
+		if (!ReadLineWithTimeout(readyLine, MEDIAPIPE_READY_TIMEOUT_MS) || readyLine != wxT("READY")) {
+			DrainErrorStream();
+			error = wxString::Format(
+				wxT("MediaPipe backend did not become ready (response: %s)"),
+				readyLine.c_str());
+			Stop();
+			return false;
+		}
+
+		DrainErrorStream();
+		return true;
+	}
+
+	void Stop()
+	{
+		if (m_process != NULL) {
+			if (m_process->GetOutputStream() != NULL) {
+				m_process->CloseOutput();
+			}
+			delete m_process;
+			m_process = NULL;
+		}
+
+		m_pid = 0;
+		m_childStdin = NULL;
+		m_childStdout = NULL;
+		m_childStderr = NULL;
+	}
+
+	bool ReadLineWithTimeout(wxString& line, long timeoutMs)
+	{
+		line.clear();
+		if (m_childStdout == NULL) return false;
+
+		wxStopWatch timer;
+		while (timer.Time() < timeoutMs) {
+			if (m_childStdout->CanRead()) {
+				wxTextInputStream textInput(*m_childStdout);
+				line = textInput.ReadLine();
+				return true;
+			}
+			wxMilliSleep(10);
+		}
+
+		return false;
+	}
+
+	void DrainErrorStream()
+	{
+		if (m_childStderr == NULL) return;
+
+		while (m_childStderr->CanRead()) {
+			wxTextInputStream textInput(*m_childStderr);
+			const wxString errorLine = textInput.ReadLine();
+			if (!errorLine.IsEmpty()) {
+				SLOG_WARNING("MediaPipe backend: %s", ToUtf8(errorLine).c_str());
+			}
+		}
+	}
+
+	bool ParseResponse(
+		const wxString& responseLine,
+		double scale,
+		const cv::Size& imageSize,
+		FaceDetectionResult& selectedFace)
+	{
+		std::istringstream iss(ToUtf8(responseLine));
+		std::string status;
+		iss >> status;
+		if (status != "OK") return false;
+
+		double x = 0.0;
+		double y = 0.0;
+		double width = 0.0;
+		double height = 0.0;
+		double score = 0.0;
+		iss >> x >> y >> width >> height >> score;
+		if (!iss) return false;
+
+		selectedFace = FaceDetectionResult();
+		selectedFace.box = ClampRect(
+			cv::Rect(
+				cvRound(x / scale),
+				cvRound(y / scale),
+				cvRound(width / scale),
+				cvRound(height / scale)),
+			imageSize);
+		selectedFace.score = static_cast<float>(score);
+
+		for (int i = 0; i < 5; ++i) {
+			double landmarkX = 0.0;
+			double landmarkY = 0.0;
+			iss >> landmarkX >> landmarkY;
+			if (!iss) return false;
+
+			selectedFace.landmarks.push_back(Point2f(
+				static_cast<float>(landmarkX / scale),
+				static_cast<float>(landmarkY / scale)));
+		}
+
+		return selectedFace.box.area() > 0 && selectedFace.landmarks.size() >= 3;
+	}
+
+	wxProcess* m_process;
+	long m_pid;
+	wxOutputStream* m_childStdin;
+	wxInputStream* m_childStdout;
+	wxInputStream* m_childStderr;
+};
+
 class HaarFaceDetector : public FaceDetectionBackend {
 public:
 	static std::unique_ptr<FaceDetectionBackend> Create(wxString& modelPath, wxString& error)
@@ -515,9 +764,34 @@ private:
 };
 #endif
 
+static bool UsesSynchronousLandmarkTracking(const FaceDetectionBackend* backend)
+{
+	if (backend == NULL) return false;
+
+	const std::string backendName = backend->GetName();
+	return backendName == "YuNet" || backendName == "MediaPipe Face Mesh";
+}
+
 static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& available)
 {
 	available = false;
+
+	wxString mediaPipeScript;
+	wxString mediaPipeError;
+	std::unique_ptr<FaceDetectionBackend> mediaPipeBackend =
+		MediaPipeFaceMeshDetector::Create(mediaPipeScript, mediaPipeError);
+	if (mediaPipeBackend.get() != NULL) {
+		SLOG_INFO(
+			"Using face detector backend: %s (%s)",
+			mediaPipeBackend->GetName(),
+			ToUtf8(mediaPipeScript).c_str());
+		available = true;
+		return mediaPipeBackend;
+	}
+
+	SLOG_WARNING(
+		"MediaPipe Face Mesh backend unavailable, falling back to native detectors: %s",
+		ToUtf8(mediaPipeError).c_str());
 
 #if defined(ENABLE_YUNET_FACE_DETECTOR)
 	wxString yuNetPath;
@@ -573,11 +847,12 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 		return;
 	}
 
-	m_useLandmarkTracking =
-		(m_faceDetector.get() != NULL && std::string(m_faceDetector->GetName()) == "YuNet");
+	m_useLandmarkTracking = UsesSynchronousLandmarkTracking(m_faceDetector.get());
 	if (m_useLandmarkTracking) {
 		SetCpuUsage(CVisionPipeline::CPU_HIGHEST);
-		SLOG_INFO("Using synchronous landmark-driven tracking with YuNet");
+		SLOG_INFO(
+			"Using synchronous landmark-driven tracking with %s",
+			m_faceDetector->GetName());
 	}
 	else {
 		// Create and start face detection thread

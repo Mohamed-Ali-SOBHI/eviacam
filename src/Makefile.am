@@ -41,7 +41,8 @@ dist_noinst_DATA= \
 
 dist_pkgdata_DATA = \
 	data/haarcascade_frontalface_default.xml \
-	data/face_detection_yunet_2023mar.onnx
+	data/face_detection_yunet_2023mar.onnx \
+	data/mediapipe_face_mesh_backend.py
 
 nobase_dist_pkgdata_DATA = \
 	resources/clickWindowBitmap.xrc \
