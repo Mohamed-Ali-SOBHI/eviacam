@@ -2,8 +2,30 @@ import struct
 import sys
 
 import cv2
-import mediapipe as mp
 import numpy as np
+from google.protobuf import message_factory, symbol_database
+
+
+def install_protobuf_compat():
+    # MediaPipe 0.10.x still reaches protobuf APIs removed in protobuf 6.
+    if not hasattr(symbol_database.SymbolDatabase, "GetPrototype"):
+        def _symbol_db_get_prototype(self, descriptor):
+            return message_factory.GetMessageClass(descriptor)
+
+        symbol_database.SymbolDatabase.GetPrototype = _symbol_db_get_prototype
+
+    if hasattr(message_factory, "MessageFactory") and not hasattr(
+        message_factory.MessageFactory, "GetPrototype"
+    ):
+        def _message_factory_get_prototype(self, descriptor):
+            return message_factory.GetMessageClass(descriptor)
+
+        message_factory.MessageFactory.GetPrototype = _message_factory_get_prototype
+
+
+install_protobuf_compat()
+
+import mediapipe as mp
 
 
 def clamp(value, lower, upper):
