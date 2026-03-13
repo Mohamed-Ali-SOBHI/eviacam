@@ -31,10 +31,10 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "../simplelog/simplelog.h"
 #include "capturethread.h"
 #include "crvcamera.h"
 #include "camwindow.h"
-#include "simplelog.h"
 
 // Constructor
 CCaptureThread::CCaptureThread (CCamera *pCamera, CCamWindow *pCamWindow, 
