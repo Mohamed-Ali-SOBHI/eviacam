@@ -90,8 +90,10 @@ const float YUNET_SCORE_THRESHOLD = 0.9f;
 const float YUNET_NMS_THRESHOLD = 0.3f;
 const int YUNET_TOP_K = 5000;
 const int YUNET_MAX_INPUT_SIDE = 640;
+const size_t MEDIAPIPE_WRITE_CHUNK_BYTES = 4096;
 const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
 const long MEDIAPIPE_RESPONSE_TIMEOUT_MS = 5000;
+const long MEDIAPIPE_WRITE_STALL_TIMEOUT_MS = 5000;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
 static std::string ToUtf8(const wxString& value)
@@ -104,14 +106,24 @@ static bool WriteAll(wxOutputStream& stream, const void* data, size_t size)
 	const unsigned char* current =
 		static_cast<const unsigned char*>(data);
 	size_t remaining = size;
+	wxStopWatch stallTimer;
 
 	while (remaining > 0) {
-		stream.Write(current, remaining);
+		const size_t chunkSize = std::min(remaining, MEDIAPIPE_WRITE_CHUNK_BYTES);
+		stream.Write(current, chunkSize);
 		const size_t written = static_cast<size_t>(stream.LastWrite());
 		if (written == 0) {
-			return false;
+			if (!stream.IsOk()) {
+				return false;
+			}
+			if (stallTimer.Time() >= MEDIAPIPE_WRITE_STALL_TIMEOUT_MS) {
+				return false;
+			}
+			wxMilliSleep(1);
+			continue;
 		}
 
+		stallTimer.Start();
 		current += written;
 		remaining -= written;
 	}
