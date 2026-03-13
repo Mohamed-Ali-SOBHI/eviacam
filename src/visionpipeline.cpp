@@ -261,6 +261,53 @@ static void CollectLandmarkCorners(
 	FilterLowerFaceCorners(corners, trackArea);
 }
 
+static bool GetLandmarkAnchor(const std::vector<Point2f>& landmarks, Point2f& anchor)
+{
+	if (landmarks.size() < 3) return false;
+
+	const Point2f eyeCenter = (landmarks[0] + landmarks[1]) * 0.5f;
+	anchor = Point2f(
+		(eyeCenter.x * 2.0f + landmarks[2].x) / 3.0f,
+		(eyeCenter.y * 2.0f + landmarks[2].y) / 3.0f);
+	return true;
+}
+
+static cv::Rect BuildTrackAreaFromLandmarks(
+	const std::vector<Point2f>& landmarks,
+	const cv::Rect& fallbackFace,
+	const cv::Size& imageSize)
+{
+	if (landmarks.size() < 3) {
+		return ClampRect(fallbackFace, imageSize);
+	}
+
+	const Point2f rightEye = landmarks[0];
+	const Point2f leftEye = landmarks[1];
+	const Point2f nose = landmarks[2];
+	const Point2f eyeCenter = (rightEye + leftEye) * 0.5f;
+	const float eyeDistance = std::max(20.0f, norm(rightEye - leftEye));
+	const float noseDistance = std::max(12.0f, norm(nose - eyeCenter));
+
+	float width = eyeDistance * 2.8f;
+	float height = std::max(width * 1.18f, noseDistance * 5.0f);
+
+	if (fallbackFace.area() > 0) {
+		width = std::max(width, fallbackFace.width * 0.95f);
+		height = std::max(height, fallbackFace.height * 0.95f);
+	}
+
+	const float centerX = eyeCenter.x;
+	const float centerY = eyeCenter.y + height * 0.18f;
+
+	return ClampRect(
+		cv::Rect(
+			cvRound(centerX - width * 0.5f),
+			cvRound(centerY - height * 0.5f),
+			cvRound(width),
+			cvRound(height)),
+		imageSize);
+}
+
 static bool SelectFaceDetection(
 	const std::vector<FaceDetectionResult>& detections,
 	const cv::Rect& currentTrackArea,
@@ -526,6 +573,12 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 		return;
 	}
 
+	m_useLandmarkTracking =
+		(m_faceDetector.get() != NULL && std::string(m_faceDetector->GetName()) == "YuNet");
+	if (m_useLandmarkTracking) {
+		SetCpuUsage(CVisionPipeline::CPU_HIGHEST);
+	}
+
 	// Create and start face detection thread
 	if (Create() == wxTHREAD_NO_ERROR) {
 #if defined(WIN32)
@@ -598,11 +651,23 @@ void CVisionPipeline::ComputeFaceTrackArea(const cv::Mat& image)
 
 	cv::Rect currentTrackArea;
 	m_trackArea.GetBoxImg(image, currentTrackArea);
+	const bool hadTrackedFace = IsFaceDetected();
 
 	FaceDetectionResult detectedFace;
 	if (m_faceDetector->Detect(image, currentTrackArea, IsFaceDetected(), detectedFace)) {
-		m_faceLocation = detectedFace.box;
+		if (!hadTrackedFace) {
+			m_hasPreviousFaceAnchor = false;
+		}
 		m_faceLandmarks = detectedFace.landmarks;
+		if (m_useLandmarkTracking && detectedFace.landmarks.size() >= 3) {
+			m_faceLocation = BuildTrackAreaFromLandmarks(
+				detectedFace.landmarks,
+				detectedFace.box,
+				image.size());
+		}
+		else {
+			m_faceLocation = detectedFace.box;
+		}
 		m_faceLocationStatus = 1;
 
 		m_waitTime.Reset();
@@ -653,6 +718,41 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	const cv::Rect trackAreaRoi = ClampRect(trackArea, image.size());
 	if (trackAreaRoi.area() <= 0) {
 		m_corners.clear();
+		return;
+	}
+
+	if (m_useLandmarkTracking) {
+		if (updateFeatures && detectedLandmarks.size() >= 3) {
+			Point2f faceAnchor;
+			if (GetLandmarkAnchor(detectedLandmarks, faceAnchor)) {
+				if (m_hasPreviousFaceAnchor) {
+					const float dx = m_previousFaceAnchor.x - faceAnchor.x;
+					const float dy = m_previousFaceAnchor.y - faceAnchor.y;
+					xVel = 2.0f * dx;
+					yVel = 2.0f * -dy;
+				}
+
+				m_previousFaceAnchor = faceAnchor;
+				m_hasPreviousFaceAnchor = true;
+				m_corners = detectedLandmarks;
+
+				const cv::Rect landmarkTrackArea = BuildTrackAreaFromLandmarks(
+					detectedLandmarks,
+					trackAreaRoi,
+					image.size());
+				m_trackArea.SetSizeImg(image, landmarkTrackArea.width, landmarkTrackArea.height);
+				m_trackArea.SetCenterImg(
+					image,
+					cvRound(landmarkTrackArea.x + landmarkTrackArea.width / 2.0f),
+					cvRound(landmarkTrackArea.y + landmarkTrackArea.height / 2.0f));
+				DrawCorners(image, m_corners, cv::Scalar(0, 255, 0));
+				return;
+			}
+		}
+
+		m_corners.clear();
+		xVel = 0;
+		yVel = 0;
 		return;
 	}
 
@@ -912,6 +1012,9 @@ void CVisionPipeline::InitDefaults()
 {
 	m_trackFace= true;
 	m_enableWhenFaceDetected= false;
+	m_useLandmarkTracking = false;
+	m_hasPreviousFaceAnchor = false;
+	m_previousFaceAnchor = Point2f(0.0f, 0.0f);
 	m_waitTime.SetWaitTimeMs(DEFAULT_FACE_DETECTION_TIMEOUT);
 	SetThreadPeriod(CPU_NORMAL);
 	m_trackArea.SetSize (DEFAULT_TRACK_AREA_WIDTH_PERCENT, DEFAULT_TRACK_AREA_HEIGHT_PERCENT);

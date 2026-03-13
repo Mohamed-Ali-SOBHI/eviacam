@@ -84,6 +84,9 @@ private:
 	bool m_trackFace;
 	bool m_enableWhenFaceDetected;
 	bool m_isRunning;
+	bool m_useLandmarkTracking;
+	bool m_hasPreviousFaceAnchor;
+	cv::Point2f m_previousFaceAnchor;
 
 	CWaitTime m_waitTime;
 	CWaitTime m_trackAreaTimeout;
