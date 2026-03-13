@@ -39,6 +39,7 @@
 #include <wx/cmdline.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/fileconf.h>
+#include <wx/filename.h>
 #include <wx/string.h>
 
 #include "eviacamapp.h"
@@ -210,6 +211,14 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 	if (debug_mode) {
 		// Set log priority level
 		slog_set_priority (SLOG_PRIO_DEBUG);
+
+		wxString slogPath = wxFileName::GetTempDir() + wxFILE_SEP_PATH + wxT("eviacam-runtime.log");
+		FILE* slogFile = fopen(slogPath.mb_str(), "a");
+		if (slogFile != NULL) {
+			slog_stream_set_stream(slogFile);
+			fprintf(slogFile, "=== eviacam debug session start ===\n");
+			fflush(slogFile);
+		}
 
 #if defined(WIN32)
 		AllocConsole();
