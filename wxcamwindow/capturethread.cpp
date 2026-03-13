@@ -34,6 +34,7 @@
 #include "capturethread.h"
 #include "crvcamera.h"
 #include "camwindow.h"
+#include "simplelog.h"
 
 // Constructor
 CCaptureThread::CCaptureThread (CCamera *pCamera, CCamWindow *pCamWindow, 
@@ -73,14 +74,24 @@ wxThread::ExitCode CCaptureThread::Entry( )
 
 	// Start thread main loop
 	cv::Mat frame;
+	int deliveredFrameCount = 0;
+	int emptyFrameCount = 0;
 	while (m_Life)
 	{
 		if (TestDestroy()) break;
 		
 		m_pCamera->QueryFrame(frame);
 
-		if (frame.empty()) wxMilliSleep(20); // If no result wait some time to avoid consuming all CPU
+		if (frame.empty()) {
+			if ((emptyFrameCount++ % 50) == 0) {
+				SLOG_DEBUG("Capture thread: empty frame");
+			}
+			wxMilliSleep(20); // If no result wait some time to avoid consuming all CPU
+		}
 		else {
+			if ((deliveredFrameCount++ % 30) == 0) {
+				SLOG_DEBUG("Capture thread: frame %dx%d", frame.cols, frame.rows);
+			}
 			if (m_pProcessImage) m_pProcessImage->ProcessImage (frame);
 			if (m_pCamWindow) m_pCamWindow->DrawCam (frame);
 		}

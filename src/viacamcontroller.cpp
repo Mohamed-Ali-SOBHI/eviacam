@@ -519,6 +519,19 @@ void CViacamController::ProcessImage (cv::Mat& image)
 
 	// Proces frame
 	allowedByFaceLocalizationSystem = m_visionPipeline.ProcessImage (image, vx, vy);
+	static int processLogCount = 0;
+	if ((processLogCount++ % 30) == 0) {
+		SLOG_DEBUG(
+			"ProcessImage: enabled=%d allowed=%d trackFace=%d faceDetected=%d vx=%.3f vy=%.3f frame=%dx%d",
+			m_enabled ? 1 : 0,
+			allowedByFaceLocalizationSystem ? 1 : 0,
+			m_visionPipeline.GetTrackFace() ? 1 : 0,
+			m_visionPipeline.IsFaceDetected() ? 1 : 0,
+			vx,
+			vy,
+			image.cols,
+			image.rows);
+	}
 
 	if ((m_enabled && allowedByFaceLocalizationSystem) || m_motionCalibrationEnabled) {
 		// Send mouse motion
