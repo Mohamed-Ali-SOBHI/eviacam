@@ -433,9 +433,11 @@ public:
 
 		wxString responseLine;
 		if (!ReadLineWithTimeout(responseLine, MEDIAPIPE_RESPONSE_TIMEOUT_MS)) {
+			SLOG_WARNING("MediaPipe backend response timed out");
 			DrainErrorStream();
 			return false;
 		}
+		SLOG_DEBUG("MediaPipe backend response: %s", ToUtf8(responseLine).c_str());
 		DrainErrorStream();
 
 		return ParseResponse(responseLine, 1.0, image.size(), selectedFace);
