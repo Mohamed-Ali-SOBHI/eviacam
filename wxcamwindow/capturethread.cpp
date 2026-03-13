@@ -35,6 +35,23 @@
 #include "capturethread.h"
 #include "crvcamera.h"
 #include "camwindow.h"
+#include <cstdlib>
+
+namespace {
+
+void SaveDebugCaptureFrame(const cv::Mat& frame, int frameNumber)
+{
+	if (frame.empty()) return;
+
+	const char* tempDir = std::getenv("TEMP");
+	if (tempDir == NULL || tempDir[0] == '\0') return;
+
+	char path[1024];
+	snprintf(path, sizeof(path), "%s\\eviacam-capture-%03d.png", tempDir, frameNumber);
+	cv::imwrite(path, frame);
+}
+
+}
 
 // Constructor
 CCaptureThread::CCaptureThread (CCamera *pCamera, CCamWindow *pCamWindow, 
@@ -91,6 +108,9 @@ wxThread::ExitCode CCaptureThread::Entry( )
 		else {
 			if ((deliveredFrameCount++ % 30) == 0) {
 				SLOG_DEBUG("Capture thread: frame %dx%d", frame.cols, frame.rows);
+			}
+			if (deliveredFrameCount == 1 || deliveredFrameCount == 120) {
+				SaveDebugCaptureFrame(frame, deliveredFrameCount);
 			}
 			if (m_pProcessImage) m_pProcessImage->ProcessImage (frame);
 			if (m_pCamWindow) m_pCamWindow->DrawCam (frame);
