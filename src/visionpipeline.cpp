@@ -769,7 +769,9 @@ static bool UsesSynchronousLandmarkTracking(const FaceDetectionBackend* backend)
 	if (backend == NULL) return false;
 
 	const std::string backendName = backend->GetName();
-	return backendName == "YuNet" || backendName == "MediaPipe Face Mesh";
+	// YuNet runs in-process and is fast enough to drive the tracker directly.
+	// MediaPipe goes through a Python sidecar, so it must stay asynchronous.
+	return backendName == "YuNet";
 }
 
 static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& available)
@@ -847,7 +849,14 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 		return;
 	}
 
+	const std::string backendName =
+		(m_faceDetector.get() != NULL) ? m_faceDetector->GetName() : std::string();
 	m_useLandmarkTracking = UsesSynchronousLandmarkTracking(m_faceDetector.get());
+	if (backendName == "MediaPipe Face Mesh") {
+		// Keep the worker responsive enough to re-anchor the face frequently.
+		SetCpuUsage(CVisionPipeline::CPU_HIGH);
+	}
+
 	if (m_useLandmarkTracking) {
 		SetCpuUsage(CVisionPipeline::CPU_HIGHEST);
 		SLOG_INFO(
@@ -855,6 +864,12 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 			m_faceDetector->GetName());
 	}
 	else {
+		if (backendName == "MediaPipe Face Mesh") {
+			SLOG_INFO(
+				"Using asynchronous landmark-seeded tracking with %s",
+				m_faceDetector->GetName());
+		}
+
 		// Create and start face detection thread
 		if (Create() == wxTHREAD_NO_ERROR) {
 #if defined(WIN32)
