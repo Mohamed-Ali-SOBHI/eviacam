@@ -88,8 +88,8 @@ const float YUNET_SCORE_THRESHOLD = 0.9f;
 const float YUNET_NMS_THRESHOLD = 0.3f;
 const int YUNET_TOP_K = 5000;
 const int YUNET_MAX_INPUT_SIDE = 640;
-const int MEDIAPIPE_MAX_INPUT_SIDE = 640;
 const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
+const long MEDIAPIPE_RESPONSE_TIMEOUT_MS = 5000;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
 static std::string ToUtf8(const wxString& value)
@@ -415,19 +415,8 @@ public:
 			return false;
 		}
 
-		double scale = 1.0;
-		cv::Mat resized = image;
-		const int maxSide = std::max(image.cols, image.rows);
-		if (maxSide > MEDIAPIPE_MAX_INPUT_SIDE) {
-			scale = static_cast<double>(MEDIAPIPE_MAX_INPUT_SIDE) / static_cast<double>(maxSide);
-			cv::resize(image, resized, cv::Size(), scale, scale, cv::INTER_LINEAR);
-		}
-
 		std::vector<uchar> encodedFrame;
-		std::vector<int> encodeParams;
-		encodeParams.push_back(cv::IMWRITE_JPEG_QUALITY);
-		encodeParams.push_back(85);
-		if (!cv::imencode(".jpg", resized, encodedFrame, encodeParams)) {
+		if (!cv::imencode(".png", image, encodedFrame)) {
 			return false;
 		}
 
@@ -442,13 +431,13 @@ public:
 		}
 
 		wxString responseLine;
-		if (!ReadLineWithTimeout(responseLine, 1500)) {
+		if (!ReadLineWithTimeout(responseLine, MEDIAPIPE_RESPONSE_TIMEOUT_MS)) {
 			DrainErrorStream();
 			return false;
 		}
 		DrainErrorStream();
 
-		return ParseResponse(responseLine, scale, image.size(), selectedFace);
+		return ParseResponse(responseLine, 1.0, image.size(), selectedFace);
 	}
 
 private:
