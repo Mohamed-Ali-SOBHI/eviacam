@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <locale>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -547,6 +548,7 @@ private:
 		FaceDetectionResult& selectedFace)
 	{
 		std::istringstream iss(ToUtf8(responseLine));
+		iss.imbue(std::locale::classic());
 		std::string status;
 		iss >> status;
 		if (status != "OK") return false;
@@ -557,7 +559,12 @@ private:
 		double height = 0.0;
 		double score = 0.0;
 		iss >> x >> y >> width >> height >> score;
-		if (!iss) return false;
+		if (!iss) {
+			SLOG_WARNING(
+				"MediaPipe backend response parse failed after bbox: %s",
+				ToUtf8(responseLine).c_str());
+			return false;
+		}
 
 		selectedFace = FaceDetectionResult();
 		selectedFace.box = ClampRect(
@@ -573,7 +580,13 @@ private:
 			double landmarkX = 0.0;
 			double landmarkY = 0.0;
 			iss >> landmarkX >> landmarkY;
-			if (!iss) return false;
+			if (!iss) {
+				SLOG_WARNING(
+					"MediaPipe backend response parse failed on landmark %d: %s",
+					i,
+					ToUtf8(responseLine).c_str());
+				return false;
+			}
 
 			selectedFace.landmarks.push_back(Point2f(
 				static_cast<float>(landmarkX / scale),
