@@ -22,7 +22,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <glib.h>
 #include "colorspaces.h"
 //#include "v4l2uvc.h"
 
@@ -800,7 +799,7 @@ void s508_to_yuyv(BYTE *framebuffer, BYTE *tmpbuffer, int width, int height)
 // 
 //  Written by Damien Douxchamps and Frederic Devernay
 static void convert_border_bayer_line_to_bgr24( BYTE* bayer, BYTE* adjacent_bayer,
-	BYTE *bgr, int width, gboolean start_with_green, gboolean blue_line)
+	BYTE *bgr, int width, bool start_with_green, bool blue_line)
 {
 	int t0, t1;
 
@@ -950,7 +949,7 @@ static void convert_border_bayer_line_to_bgr24( BYTE* bayer, BYTE* adjacent_baye
 /* From libdc1394, which on turn was based on OpenCV's Bayer decoding */
 static void bayer_to_rgbbgr24(BYTE *bayer,
 	BYTE *bgr, int width, int height,
-	gboolean start_with_green, gboolean blue_line)
+	bool start_with_green, bool blue_line)
 {
 	/* render the first line */
 	convert_border_bayer_line_to_bgr24(bayer, bayer + width, bgr, width,
@@ -1143,23 +1142,23 @@ bayer_to_rgb24(BYTE *pBay, BYTE *pRGB24, int width, int height, int pix_order)
 	{
 		//conversion functions are build for bgr, by switching b and r lines we get rgb
 		case 0: /* gbgbgb... | rgrgrg... (V4L2_PIX_FMT_SGBRG8)*/
-			bayer_to_rgbbgr24(pBay, pRGB24, width, height, TRUE, FALSE);
+			bayer_to_rgbbgr24(pBay, pRGB24, width, height, true, false);
 			break;
 		
 		case 1: /* grgrgr... | bgbgbg... (V4L2_PIX_FMT_SGRBG8)*/
-			bayer_to_rgbbgr24(pBay, pRGB24, width, height, TRUE, TRUE);
+			bayer_to_rgbbgr24(pBay, pRGB24, width, height, true, true);
 			break;
 		
 		case 2: /* bgbgbg... | grgrgr... (V4L2_PIX_FMT_SBGGR8)*/
-			bayer_to_rgbbgr24(pBay, pRGB24, width, height, FALSE, FALSE);
+			bayer_to_rgbbgr24(pBay, pRGB24, width, height, false, false);
 			break;
 		
 		case 3: /* rgrgrg... ! gbgbgb... (V4L2_PIX_FMT_SRGGB8)*/
-			bayer_to_rgbbgr24(pBay, pRGB24, width, height, FALSE, TRUE);
+			bayer_to_rgbbgr24(pBay, pRGB24, width, height, false, true);
 			break;
 			
 		default: /* default is 0*/
-			bayer_to_rgbbgr24(pBay, pRGB24, width, height, TRUE, FALSE);
+			bayer_to_rgbbgr24(pBay, pRGB24, width, height, true, false);
 			break;
 	}
 }
