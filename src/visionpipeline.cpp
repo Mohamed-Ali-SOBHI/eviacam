@@ -792,36 +792,8 @@ static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& av
 	}
 
 	SLOG_WARNING(
-		"MediaPipe Face Mesh backend unavailable, falling back to native detectors: %s",
+		"MediaPipe Face Mesh backend unavailable and fallback is disabled: %s",
 		ToUtf8(mediaPipeError).c_str());
-
-#if defined(ENABLE_YUNET_FACE_DETECTOR)
-	wxString yuNetPath;
-	wxString yuNetError;
-	std::unique_ptr<FaceDetectionBackend> backend = YuNetFaceDetector::Create(yuNetPath, yuNetError);
-	if (backend.get() != NULL) {
-		SLOG_INFO("Using face detector backend: %s (%s)", backend->GetName(), ToUtf8(yuNetPath).c_str());
-		available = true;
-		return backend;
-	}
-
-	SLOG_WARNING(
-		"YuNet face detector unavailable, falling back to Haar: %s",
-		ToUtf8(yuNetError).c_str());
-#else
-	SLOG_INFO("YuNet face detector support not enabled in this build; using Haar fallback");
-#endif
-
-	wxString haarPath;
-	wxString haarError;
-	std::unique_ptr<FaceDetectionBackend> fallbackBackend = HaarFaceDetector::Create(haarPath, haarError);
-	if (fallbackBackend.get() != NULL) {
-		SLOG_INFO("Using face detector backend: %s (%s)", fallbackBackend->GetName(), ToUtf8(haarPath).c_str());
-		available = true;
-		return fallbackBackend;
-	}
-
-	SLOG_WARNING("Haar face detector unavailable: %s", ToUtf8(haarError).c_str());
 	return std::unique_ptr<FaceDetectionBackend>();
 }
 
