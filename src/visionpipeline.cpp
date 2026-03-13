@@ -758,8 +758,8 @@ static bool UsesSynchronousLandmarkTracking(const FaceDetectionBackend* backend)
 	if (backend == NULL) return false;
 
 	const std::string backendName = backend->GetName();
-	// YuNet runs in-process and is fast enough to drive the tracker directly.
-	// MediaPipe goes through a Python sidecar, so it must stay asynchronous.
+	// YuNet runs in-process and exposes richer landmarks, so it can drive the
+	// tracker directly from the main loop.
 	return backendName == "YuNet";
 }
 
@@ -817,28 +817,24 @@ CVisionPipeline::CVisionPipeline(wxThreadKind kind)
 		return;
 	}
 
-	const std::string backendName =
-		(m_faceDetector.get() != NULL) ? m_faceDetector->GetName() : std::string();
 	m_useLandmarkTracking = UsesSynchronousLandmarkTracking(m_faceDetector.get());
 	m_useDetectionDrivenTracking = UsesDetectionDrivenTracking(m_faceDetector.get());
-	if (m_useDetectionDrivenTracking) {
-		// Keep the worker responsive enough to re-anchor the face frequently.
-		SetCpuUsage(CVisionPipeline::CPU_HIGH);
-	}
-
-	if (m_useLandmarkTracking) {
+	const bool useSynchronousTracking =
+		m_useLandmarkTracking || m_useDetectionDrivenTracking;
+	if (useSynchronousTracking) {
 		SetCpuUsage(CVisionPipeline::CPU_HIGHEST);
-		SLOG_INFO(
-			"Using synchronous landmark-driven tracking with %s",
-			m_faceDetector->GetName());
-	}
-	else {
 		if (m_useDetectionDrivenTracking) {
 			SLOG_INFO(
-				"Using asynchronous detection-driven tracking with %s",
+				"Using synchronous detection-driven tracking with %s",
 				m_faceDetector->GetName());
 		}
-
+		else {
+			SLOG_INFO(
+				"Using synchronous landmark-driven tracking with %s",
+				m_faceDetector->GetName());
+		}
+	}
+	else {
 		// Create and start face detection thread
 		if (Create() == wxTHREAD_NO_ERROR) {
 #if defined(WIN32)
@@ -933,6 +929,21 @@ void CVisionPipeline::ComputeFaceTrackArea(const cv::Mat& image)
 
 		m_waitTime.Reset();
 		m_trackAreaTimeout.Reset();
+
+		if (m_useDetectionDrivenTracking) {
+			static unsigned long s_lastDetectionLog = 0;
+			const unsigned long now = CTimeUtil::GetMiliCount();
+			if (now - s_lastDetectionLog >= 1000) {
+				SLOG_DEBUG(
+					"MediaPipe detection accepted: box=(%d,%d %dx%d) landmarks=%d",
+					m_faceLocation.x,
+					m_faceLocation.y,
+					m_faceLocation.width,
+					m_faceLocation.height,
+					(int) detectedFace.landmarks.size());
+				s_lastDetectionLog = now;
+			}
+		}
 	}
 }
 
@@ -1042,6 +1053,18 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 					cvRound(trackedFaceArea.x + trackedFaceArea.width / 2.0f),
 					cvRound(trackedFaceArea.y + trackedFaceArea.height / 2.0f));
 				DrawCorners(image, m_corners, cv::Scalar(0, 255, 0));
+
+				static unsigned long s_lastTrackingLog = 0;
+				const unsigned long now = CTimeUtil::GetMiliCount();
+				if (now - s_lastTrackingLog >= 1000) {
+					SLOG_DEBUG(
+						"MediaPipe tracking update: xVel=%.3f yVel=%.3f center=(%d,%d)",
+						xVel,
+						yVel,
+						cvRound(trackedFaceArea.x + trackedFaceArea.width / 2.0f),
+						cvRound(trackedFaceArea.y + trackedFaceArea.height / 2.0f));
+					s_lastTrackingLog = now;
+				}
 			}
 		}
 		else {
@@ -1189,7 +1212,7 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		{
 			wxCriticalSectionLocker lock(m_imageCopyMutex);
 
-			if (m_useLandmarkTracking) {
+			if (m_useLandmarkTracking || m_useDetectionDrivenTracking) {
 				ComputeFaceTrackArea(detectFrame);
 			}
 
@@ -1201,7 +1224,10 @@ bool CVisionPipeline::ProcessImage(cv::Mat& image, float& xVel, float& yVel)
 		}
 
 		// Notifies face detection thread when needed
-		if (!m_useLandmarkTracking && m_trackFace && m_faceDetectionAvailable) {
+		if (!m_useLandmarkTracking &&
+			!m_useDetectionDrivenTracking &&
+			m_trackFace &&
+			m_faceDetectionAvailable) {
 			m_trackArea.SetDegradation(255 - m_trackAreaTimeout.PercentagePassed() * 255 / 100);
 			m_condition.Signal();
 		}
