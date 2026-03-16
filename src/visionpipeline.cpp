@@ -562,7 +562,7 @@ private:
 			if (m_transportSocket->IsConnected()) {
 				m_transportSocket->Close();
 			}
-			delete m_transportSocket;
+			m_transportSocket->Destroy();
 			m_transportSocket = NULL;
 		}
 
@@ -572,7 +572,7 @@ private:
 			}
 			if (m_pid != 0) {
 				const wxKillError killResult =
-					wxProcess::Kill(m_pid, wxSIGTERM, NULL, wxKILL_CHILDREN);
+					wxProcess::Kill(static_cast<int>(m_pid), wxSIGTERM, wxKILL_CHILDREN);
 				if (killResult != wxKILL_OK && killResult != wxKILL_NO_PROCESS) {
 					SLOG_WARNING("Failed to terminate MediaPipe backend process: pid=%ld", m_pid);
 				}
@@ -648,8 +648,8 @@ private:
 			return false;
 		}
 
-		std::unique_ptr<wxSocketClient> socket(new wxSocketClient());
-		socket->SetFlags(wxSOCKET_BLOCK | wxSOCKET_WAITALL);
+		wxSocketClient* socket =
+			new wxSocketClient(static_cast<wxSocketFlags>(wxSOCKET_BLOCK | wxSOCKET_WAITALL));
 		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS));
 
 		wxIPV4address address;
@@ -660,11 +660,12 @@ private:
 			error = wxString::Format(
 				wxT("Failed to connect to MediaPipe backend transport socket on port %ld"),
 				portLong);
+			socket->Destroy();
 			return false;
 		}
 		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_IO_TIMEOUT_MS));
 
-		m_transportSocket = socket.release();
+		m_transportSocket = socket;
 		return true;
 	}
 
