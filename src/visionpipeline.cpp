@@ -95,6 +95,9 @@ const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
 const long MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS = 5000;
 const long MEDIAPIPE_SOCKET_IO_TIMEOUT_MS = 5000;
 const uint32_t MEDIAPIPE_MAX_RESPONSE_BYTES = 4096;
+const float DETECTION_DRIVEN_FACE_ANCHOR_Y = 0.42f;
+const float DETECTION_DRIVEN_FACE_SMOOTHING = 0.20f;
+const float DETECTION_DRIVEN_FACE_DEADZONE_PX = 1.5f;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
 static std::string ToUtf8(const wxString& value)
@@ -324,6 +327,27 @@ static bool GetLandmarkAnchor(const std::vector<Point2f>& landmarks, Point2f& an
 		(eyeCenter.x * 2.0f + landmarks[2].x) / 3.0f,
 		(eyeCenter.y * 2.0f + landmarks[2].y) / 3.0f);
 	return true;
+}
+
+static cv::Point2f GetDetectionDrivenFaceAnchor(const cv::Rect& faceBox)
+{
+	return cv::Point2f(
+		faceBox.x + faceBox.width * 0.5f,
+		faceBox.y + faceBox.height * DETECTION_DRIVEN_FACE_ANCHOR_Y);
+}
+
+static cv::Point2f SmoothPoint(
+	const cv::Point2f& previous,
+	const cv::Point2f& current,
+	float alpha)
+{
+	return previous * (1.0f - alpha) + current * alpha;
+}
+
+static void ApplyDeadzone(float& dx, float& dy, float threshold)
+{
+	if (fabs(dx) < threshold) dx = 0.0f;
+	if (fabs(dy) < threshold) dy = 0.0f;
 }
 
 static cv::Rect BuildTrackAreaFromLandmarks(
@@ -1120,6 +1144,7 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 {
 	cv::Rect2f trackArea;
 	bool updateFeatures = false;
+	bool hasFreshFaceLocation = false;
 	std::vector<Point2f> detectedLandmarks;
 
 	xVel = 0;
@@ -1131,6 +1156,7 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		detectedLandmarks = m_faceLandmarks;
 		m_faceLandmarks.clear();
 		m_faceLocationStatus = 0;
+		hasFreshFaceLocation = true;
 		updateFeatures = true;
 	}
 	else {
@@ -1184,45 +1210,49 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	}
 
 	if (m_useDetectionDrivenTracking) {
-		if (updateFeatures && detectedLandmarks.size() >= 3) {
-			Point2f faceAnchor;
-			if (GetLandmarkAnchor(detectedLandmarks, faceAnchor)) {
-				if (m_hasPreviousFaceAnchor) {
-					const float dx = m_previousFaceAnchor.x - faceAnchor.x;
-					const float dy = m_previousFaceAnchor.y - faceAnchor.y;
-					xVel = 2.0f * dx;
-					yVel = 2.0f * -dy;
-				}
+		if (hasFreshFaceLocation) {
+			const cv::Rect trackedFaceArea = trackAreaRoi;
+			const Point2f rawFaceAnchor = GetDetectionDrivenFaceAnchor(trackedFaceArea);
+			Point2f smoothedFaceAnchor = rawFaceAnchor;
 
-				m_previousFaceAnchor = faceAnchor;
-				m_hasPreviousFaceAnchor = true;
-				m_corners = detectedLandmarks;
+			if (m_hasPreviousFaceAnchor) {
+				smoothedFaceAnchor = SmoothPoint(
+					m_previousFaceAnchor,
+					rawFaceAnchor,
+					DETECTION_DRIVEN_FACE_SMOOTHING);
+				float dx = m_previousFaceAnchor.x - smoothedFaceAnchor.x;
+				float dy = m_previousFaceAnchor.y - smoothedFaceAnchor.y;
+				ApplyDeadzone(dx, dy, DETECTION_DRIVEN_FACE_DEADZONE_PX);
+				xVel = 2.0f * dx;
+				yVel = 2.0f * -dy;
+			}
 
-				const cv::Rect trackedFaceArea = BuildTrackAreaFromLandmarks(
-					detectedLandmarks,
-					trackAreaRoi,
-					image.size());
-				m_trackArea.SetSizeImg(image, trackedFaceArea.width, trackedFaceArea.height);
-				m_trackArea.SetCenterImg(
-					image,
+			m_previousFaceAnchor = smoothedFaceAnchor;
+			m_hasPreviousFaceAnchor = true;
+			m_corners.clear();
+			m_corners.push_back(smoothedFaceAnchor);
+
+			m_trackArea.SetSizeImg(image, trackedFaceArea.width, trackedFaceArea.height);
+			m_trackArea.SetCenterImg(
+				image,
+				cvRound(trackedFaceArea.x + trackedFaceArea.width / 2.0f),
+				cvRound(trackedFaceArea.y + trackedFaceArea.height / 2.0f));
+			DrawCorners(image, m_corners, cv::Scalar(0, 255, 0));
+
+			static unsigned long s_lastTrackingLog = 0;
+			const unsigned long now = CTimeUtil::GetMiliCount();
+			if (now - s_lastTrackingLog >= 1000) {
+				SLOG_DEBUG(
+					"MediaPipe face-box tracking update: xVel=%.3f yVel=%.3f center=(%d,%d)",
+					xVel,
+					yVel,
 					cvRound(trackedFaceArea.x + trackedFaceArea.width / 2.0f),
 					cvRound(trackedFaceArea.y + trackedFaceArea.height / 2.0f));
-				DrawCorners(image, m_corners, cv::Scalar(0, 255, 0));
-
-				static unsigned long s_lastTrackingLog = 0;
-				const unsigned long now = CTimeUtil::GetMiliCount();
-				if (now - s_lastTrackingLog >= 1000) {
-					SLOG_DEBUG(
-						"MediaPipe tracking update: xVel=%.3f yVel=%.3f center=(%d,%d)",
-						xVel,
-						yVel,
-						cvRound(trackedFaceArea.x + trackedFaceArea.width / 2.0f),
-						cvRound(trackedFaceArea.y + trackedFaceArea.height / 2.0f));
-					s_lastTrackingLog = now;
-				}
+				s_lastTrackingLog = now;
 			}
 		}
 		else {
+			m_corners.clear();
 			xVel = 0;
 			yVel = 0;
 		}
