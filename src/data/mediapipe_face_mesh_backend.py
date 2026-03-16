@@ -1,3 +1,4 @@
+import socket
 import struct
 import sys
 
@@ -70,16 +71,21 @@ def build_face_result(detection, detector, width, height):
     return [x, y, w, h, score] + key_points
 
 
-def read_exact(stream, size):
+def recv_exact(sock, size):
     chunks = []
     remaining = size
     while remaining > 0:
-        chunk = stream.read(remaining)
+        chunk = sock.recv(remaining)
         if not chunk:
             return None
         chunks.append(chunk)
         remaining -= len(chunk)
     return b"".join(chunks)
+
+
+def send_message(sock, payload):
+    sock.sendall(struct.pack("<I", len(payload)))
+    sock.sendall(payload)
 
 
 def main():
@@ -89,16 +95,25 @@ def main():
     )
 
     stdout = sys.stdout
-    stdin = sys.stdin.buffer
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    transport_port = server.getsockname()[1]
 
-    stdout.write("READY\n")
+    stdout.write(f"READY PORT={transport_port}\n")
     stdout.flush()
 
     frame_index = 0
+    connection = None
 
     try:
+        connection, _ = server.accept()
+        server.close()
+        server = None
+
         while True:
-            header = read_exact(stdin, 4)
+            header = recv_exact(connection, 4)
             if header is None:
                 break
 
@@ -110,7 +125,7 @@ def main():
                 print("invalid payload header", file=sys.stderr, flush=True)
                 break
 
-            payload = read_exact(stdin, payload_size)
+            payload = recv_exact(connection, payload_size)
             if payload is None:
                 print(
                     f"frame {frame_index}: short read, expected {payload_size} bytes",
@@ -127,16 +142,14 @@ def main():
                         file=sys.stderr,
                         flush=True,
                     )
-                stdout.write("NONE\n")
-                stdout.flush()
+                send_message(connection, b"NONE")
                 continue
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = face_detection.process(rgb_frame)
 
             if not result.detections:
-                stdout.write("NONE\n")
-                stdout.flush()
+                send_message(connection, b"NONE")
                 continue
 
             face_result = build_face_result(
@@ -145,9 +158,15 @@ def main():
                 frame.shape[1],
                 frame.shape[0],
             )
-            stdout.write("OK " + " ".join(str(value) for value in face_result) + "\n")
-            stdout.flush()
+            send_message(
+                connection,
+                ("OK " + " ".join(str(value) for value in face_result)).encode("utf-8"),
+            )
     finally:
+        if connection is not None:
+            connection.close()
+        if server is not None:
+            server.close()
         face_detection.close()
 
 

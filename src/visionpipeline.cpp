@@ -49,6 +49,7 @@
 #include <wx/filename.h>
 #include <wx/msgdlg.h>
 #include <wx/process.h>
+#include <wx/socket.h>
 #include <wx/stopwatch.h>
 #include <wx/stdpaths.h>
 #include <wx/stream.h>
@@ -90,10 +91,10 @@ const float YUNET_SCORE_THRESHOLD = 0.9f;
 const float YUNET_NMS_THRESHOLD = 0.3f;
 const int YUNET_TOP_K = 5000;
 const int YUNET_MAX_INPUT_SIDE = 640;
-const size_t MEDIAPIPE_WRITE_CHUNK_BYTES = 4096;
 const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
-const long MEDIAPIPE_RESPONSE_TIMEOUT_MS = 5000;
-const long MEDIAPIPE_WRITE_STALL_TIMEOUT_MS = 5000;
+const long MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS = 5000;
+const long MEDIAPIPE_SOCKET_IO_TIMEOUT_MS = 5000;
+const uint32_t MEDIAPIPE_MAX_RESPONSE_BYTES = 4096;
 const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 
 static std::string ToUtf8(const wxString& value)
@@ -101,34 +102,44 @@ static std::string ToUtf8(const wxString& value)
 	return std::string(value.mb_str(wxConvUTF8));
 }
 
-static bool WriteAll(wxOutputStream& stream, const void* data, size_t size)
+static wxUint32 TimeoutMsToSeconds(long timeoutMs)
 {
-	const unsigned char* current =
-		static_cast<const unsigned char*>(data);
-	size_t remaining = size;
-	wxStopWatch stallTimer;
+	return timeoutMs <= 0
+		? 0
+		: static_cast<wxUint32>((timeoutMs + 999) / 1000);
+}
 
-	while (remaining > 0) {
-		const size_t chunkSize = std::min(remaining, MEDIAPIPE_WRITE_CHUNK_BYTES);
-		stream.Write(current, chunkSize);
-		const size_t written = static_cast<size_t>(stream.LastWrite());
-		if (written == 0) {
-			if (!stream.IsOk()) {
-				return false;
-			}
-			if (stallTimer.Time() >= MEDIAPIPE_WRITE_STALL_TIMEOUT_MS) {
-				return false;
-			}
-			wxMilliSleep(1);
-			continue;
-		}
+static bool SocketWriteAll(wxSocketBase& socket, const void* data, size_t size)
+{
+	socket.Write(data, size);
+	return !socket.Error() && static_cast<size_t>(socket.LastCount()) == size;
+}
 
-		stallTimer.Start();
-		current += written;
-		remaining -= written;
-	}
+static bool SocketReadAll(wxSocketBase& socket, void* data, size_t size)
+{
+	socket.Read(data, size);
+	return !socket.Error() && static_cast<size_t>(socket.LastCount()) == size;
+}
 
-	return stream.IsOk();
+static bool SocketSendMessage(wxSocketBase& socket, const void* data, size_t size)
+{
+	const uint32_t payloadSize = static_cast<uint32_t>(size);
+	if (!SocketWriteAll(socket, &payloadSize, sizeof(payloadSize))) return false;
+	return payloadSize == 0 || SocketWriteAll(socket, data, payloadSize);
+}
+
+static bool SocketReceiveMessage(wxSocketBase& socket, wxString& message)
+{
+	uint32_t payloadSize = 0;
+	if (!SocketReadAll(socket, &payloadSize, sizeof(payloadSize))) return false;
+	if (payloadSize == 0 || payloadSize > MEDIAPIPE_MAX_RESPONSE_BYTES) return false;
+
+	std::vector<char> payload(payloadSize);
+	if (!SocketReadAll(socket, &payload[0], payloadSize)) return false;
+
+	payload.push_back('\0');
+	message = wxString::FromUTF8(&payload[0]);
+	return !message.IsEmpty();
 }
 
 static bool safeHaarCascadeLoad(cv::CascadeClassifier& c, const char* fileName)
@@ -445,9 +456,10 @@ public:
 		wxUnusedVar(currentTrackArea);
 		wxUnusedVar(preferCurrentFace);
 
-		if (image.empty() || m_process == NULL || m_childStdin == NULL || m_childStdout == NULL) {
+		if (image.empty()) {
 			return false;
 		}
+		if (!EnsureBackendRunning()) return false;
 
 		std::vector<uchar> encodedFrame;
 		if (!cv::imencode(".png", image, encodedFrame)) {
@@ -455,26 +467,25 @@ public:
 		}
 
 		const uint32_t frameSize = static_cast<uint32_t>(encodedFrame.size());
-		if (!WriteAll(*m_childStdin, &frameSize, sizeof(frameSize)) ||
-			!WriteAll(*m_childStdin, encodedFrame.data(), encodedFrame.size())) {
+		if (m_transportSocket == NULL ||
+			!SocketSendMessage(*m_transportSocket, encodedFrame.data(), encodedFrame.size())) {
 			SLOG_WARNING(
-				"MediaPipe backend stdin short write: frameSize=%u lastWrite=%llu",
+				"MediaPipe backend socket write failed: frameSize=%u lastCount=%llu connected=%d",
 				frameSize,
-				static_cast<unsigned long long>(m_childStdin->LastWrite()));
-			return false;
-		}
-
-		m_childStdin->Sync();
-
-		if (!m_childStdin->IsOk()) {
-			SLOG_WARNING("MediaPipe backend stdin is not writable");
+				m_transportSocket != NULL
+					? static_cast<unsigned long long>(m_transportSocket->LastCount())
+					: 0ULL,
+				m_transportSocket != NULL && m_transportSocket->IsConnected() ? 1 : 0);
+			DrainErrorStream();
+			Stop();
 			return false;
 		}
 
 		wxString responseLine;
-		if (!ReadLineWithTimeout(responseLine, MEDIAPIPE_RESPONSE_TIMEOUT_MS)) {
-			SLOG_WARNING("MediaPipe backend response timed out");
+		if (m_transportSocket == NULL || !SocketReceiveMessage(*m_transportSocket, responseLine)) {
+			SLOG_WARNING("MediaPipe backend socket response timed out or failed");
 			DrainErrorStream();
+			Stop();
 			return false;
 		}
 		SLOG_DEBUG("MediaPipe backend response: %s", ToUtf8(responseLine).c_str());
@@ -487,14 +498,15 @@ private:
 	MediaPipeFaceMeshDetector()
 		: m_process(NULL)
 		, m_pid(0)
-		, m_childStdin(NULL)
 		, m_childStdout(NULL)
 		, m_childStderr(NULL)
+		, m_transportSocket(NULL)
 	{
 	}
 
 	bool Start(const wxString& command, wxString& error)
 	{
+		m_command = command;
 		Stop();
 
 		m_process = new wxProcess();
@@ -512,24 +524,32 @@ private:
 			return false;
 		}
 
-		m_childStdin = m_process->GetOutputStream();
 		m_childStdout = m_process->GetInputStream();
 		m_childStderr = m_process->GetErrorStream();
 
-		if (m_childStdin == NULL || m_childStdout == NULL) {
+		if (m_childStdout == NULL) {
 			error = wxT("MediaPipe backend process streams are unavailable");
 			Stop();
 			return false;
 		}
 
 		wxString readyLine;
-		if (!ReadLineWithTimeout(readyLine, MEDIAPIPE_READY_TIMEOUT_MS) || readyLine != wxT("READY")) {
+		if (!ReadLineWithTimeout(readyLine, MEDIAPIPE_READY_TIMEOUT_MS)) {
 			DrainErrorStream();
 			error = wxString::Format(
 				wxT("MediaPipe backend did not become ready (response: %s)"),
 				readyLine.c_str());
 			Stop();
 			return false;
+		}
+		if (!ConnectTransportSocket(readyLine, error)) {
+			DrainErrorStream();
+			Stop();
+			return false;
+		}
+
+		if (m_process->GetOutputStream() != NULL) {
+			m_process->CloseOutput();
 		}
 
 		DrainErrorStream();
@@ -538,18 +558,54 @@ private:
 
 	void Stop()
 	{
+		if (m_transportSocket != NULL) {
+			if (m_transportSocket->IsConnected()) {
+				m_transportSocket->Close();
+			}
+			delete m_transportSocket;
+			m_transportSocket = NULL;
+		}
+
 		if (m_process != NULL) {
 			if (m_process->GetOutputStream() != NULL) {
 				m_process->CloseOutput();
+			}
+			if (m_pid != 0) {
+				const wxKillError killResult =
+					wxProcess::Kill(m_pid, wxSIGTERM, NULL, wxKILL_CHILDREN);
+				if (killResult != wxKILL_OK && killResult != wxKILL_NO_PROCESS) {
+					SLOG_WARNING("Failed to terminate MediaPipe backend process: pid=%ld", m_pid);
+				}
 			}
 			delete m_process;
 			m_process = NULL;
 		}
 
 		m_pid = 0;
-		m_childStdin = NULL;
 		m_childStdout = NULL;
 		m_childStderr = NULL;
+	}
+
+	bool EnsureBackendRunning()
+	{
+		if (m_process != NULL &&
+			m_transportSocket != NULL &&
+			m_transportSocket->IsConnected()) {
+			return true;
+		}
+
+		if (m_command.IsEmpty()) return false;
+
+		wxString error;
+		if (!Start(m_command, error)) {
+			SLOG_WARNING(
+				"MediaPipe backend restart failed: %s",
+				ToUtf8(error).c_str());
+			return false;
+		}
+
+		SLOG_INFO("MediaPipe backend restarted");
+		return true;
 	}
 
 	bool ReadLineWithTimeout(wxString& line, long timeoutMs)
@@ -568,6 +624,48 @@ private:
 		}
 
 		return false;
+	}
+
+	bool ConnectTransportSocket(const wxString& readyLine, wxString& error)
+	{
+		const wxString prefix = wxT("READY PORT=");
+		if (readyLine.Left(prefix.Length()) != prefix) {
+			error = wxString::Format(
+				wxT("Unexpected MediaPipe backend ready response: %s"),
+				readyLine.c_str());
+			return false;
+		}
+
+		wxString portText = readyLine.Mid(prefix.Length());
+		portText.Trim(true);
+		portText.Trim(false);
+
+		long portLong = 0;
+		if (!portText.ToLong(&portLong) || portLong <= 0 || portLong > 65535) {
+			error = wxString::Format(
+				wxT("Invalid MediaPipe backend port: %s"),
+				portText.c_str());
+			return false;
+		}
+
+		std::unique_ptr<wxSocketClient> socket(new wxSocketClient());
+		socket->SetFlags(wxSOCKET_BLOCK | wxSOCKET_WAITALL);
+		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS));
+
+		wxIPV4address address;
+		address.Hostname(wxT("127.0.0.1"));
+		address.Service(static_cast<unsigned short>(portLong));
+
+		if (!socket->Connect(address, true)) {
+			error = wxString::Format(
+				wxT("Failed to connect to MediaPipe backend transport socket on port %ld"),
+				portLong);
+			return false;
+		}
+		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_IO_TIMEOUT_MS));
+
+		m_transportSocket = socket.release();
+		return true;
 	}
 
 	void DrainErrorStream()
@@ -640,9 +738,10 @@ private:
 
 	wxProcess* m_process;
 	long m_pid;
-	wxOutputStream* m_childStdin;
 	wxInputStream* m_childStdout;
 	wxInputStream* m_childStderr;
+	wxSocketClient* m_transportSocket;
+	wxString m_command;
 };
 
 class HaarFaceDetector : public FaceDetectionBackend {
