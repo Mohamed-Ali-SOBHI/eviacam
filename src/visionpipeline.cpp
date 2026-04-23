@@ -25,15 +25,11 @@
 #include "simplelog.h"
 
 #include <opencv2/core/core_c.h>
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/objdetect/objdetect.hpp>
 #include <opencv2/video/tracking.hpp>
-#if defined(ENABLE_YUNET_FACE_DETECTOR)
-#include <opencv2/objdetect.hpp>
-#endif
 #if defined(ENABLE_ONNXRUNTIME_BACKEND)
 #include <onnxruntime_cxx_api.h>
 #endif
@@ -41,22 +37,17 @@
 #include <math.h>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdint>
 #include <limits>
-#include <locale>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include <wx/filename.h>
 #include <wx/msgdlg.h>
-#include <wx/process.h>
-#include <wx/socket.h>
-#include <wx/stopwatch.h>
 #include <wx/stdpaths.h>
-#include <wx/stream.h>
-#include <wx/txtstrm.h>
 #include <wx/utils.h>
 
 // Constants
@@ -90,14 +81,6 @@ public:
 
 namespace {
 
-const float YUNET_SCORE_THRESHOLD = 0.9f;
-const float YUNET_NMS_THRESHOLD = 0.3f;
-const int YUNET_TOP_K = 5000;
-const int YUNET_MAX_INPUT_SIDE = 640;
-const long MEDIAPIPE_READY_TIMEOUT_MS = 5000;
-const long MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS = 5000;
-const long MEDIAPIPE_SOCKET_IO_TIMEOUT_MS = 5000;
-const uint32_t MEDIAPIPE_MAX_RESPONSE_BYTES = 4096;
 const float DETECTION_DRIVEN_FACE_ANCHOR_Y = 0.42f;
 const float DETECTION_DRIVEN_FACE_SMOOTHING = 0.20f;
 const float DETECTION_DRIVEN_FACE_DEADZONE_PX = 1.5f;
@@ -106,46 +89,6 @@ const cv::Size HAAR_MIN_FACE_SIZE(65, 65);
 static std::string ToUtf8(const wxString& value)
 {
 	return std::string(value.mb_str(wxConvUTF8));
-}
-
-static wxUint32 TimeoutMsToSeconds(long timeoutMs)
-{
-	return timeoutMs <= 0
-		? 0
-		: static_cast<wxUint32>((timeoutMs + 999) / 1000);
-}
-
-static bool SocketWriteAll(wxSocketBase& socket, const void* data, size_t size)
-{
-	socket.Write(data, size);
-	return !socket.Error() && static_cast<size_t>(socket.LastCount()) == size;
-}
-
-static bool SocketReadAll(wxSocketBase& socket, void* data, size_t size)
-{
-	socket.Read(data, size);
-	return !socket.Error() && static_cast<size_t>(socket.LastCount()) == size;
-}
-
-static bool SocketSendMessage(wxSocketBase& socket, const void* data, size_t size)
-{
-	const uint32_t payloadSize = static_cast<uint32_t>(size);
-	if (!SocketWriteAll(socket, &payloadSize, sizeof(payloadSize))) return false;
-	return payloadSize == 0 || SocketWriteAll(socket, data, payloadSize);
-}
-
-static bool SocketReceiveMessage(wxSocketBase& socket, wxString& message)
-{
-	uint32_t payloadSize = 0;
-	if (!SocketReadAll(socket, &payloadSize, sizeof(payloadSize))) return false;
-	if (payloadSize == 0 || payloadSize > MEDIAPIPE_MAX_RESPONSE_BYTES) return false;
-
-	std::vector<char> payload(payloadSize);
-	if (!SocketReadAll(socket, &payload[0], payloadSize)) return false;
-
-	payload.push_back('\0');
-	message = wxString::FromUTF8(&payload[0]);
-	return !message.IsEmpty();
 }
 
 static bool safeHaarCascadeLoad(cv::CascadeClassifier& c, const char* fileName)
@@ -433,46 +376,48 @@ static bool SelectFaceDetection(
 	return true;
 }
 
-class MediaPipeFaceMeshDetector : public FaceDetectionBackend {
+#if defined(ENABLE_ONNXRUNTIME_BACKEND)
+
+class OnnxBlazeFaceDetector : public FaceDetectionBackend {
 public:
-	static std::unique_ptr<FaceDetectionBackend> Create(wxString& scriptPath, wxString& error)
+	static std::unique_ptr<FaceDetectionBackend> Create(wxString& modelPath, wxString& error)
 	{
-		const wxString backendScript = FindFirstExistingFile(
-			GetPackagedFileCandidates(wxT("mediapipe_face_mesh_backend.py")));
-		if (backendScript.IsEmpty()) {
-			error = wxT("Could not find mediapipe_face_mesh_backend.py");
+		const wxString modelFile = FindFirstExistingFile(
+			GetPackagedFileCandidates(wxT("face_detection_back_256x256.onnx")));
+		if (modelFile.IsEmpty()) {
+			error = wxT("Could not find face_detection_back_256x256.onnx");
 			return std::unique_ptr<FaceDetectionBackend>();
 		}
 
-		std::vector<wxString> commandCandidates;
-#if defined(__WXMSW__)
-		commandCandidates.push_back(wxString::Format(wxT("python \"%s\""), backendScript.c_str()));
-		commandCandidates.push_back(wxString::Format(wxT("py -3 \"%s\""), backendScript.c_str()));
-#else
-		commandCandidates.push_back(wxString::Format(wxT("python3 \"%s\""), backendScript.c_str()));
-		commandCandidates.push_back(wxString::Format(wxT("python \"%s\""), backendScript.c_str()));
-#endif
-
-		wxString lastError = wxT("Could not start Python MediaPipe backend");
-		for (size_t i = 0; i < commandCandidates.size(); ++i) {
-			std::unique_ptr<MediaPipeFaceMeshDetector> detector(new MediaPipeFaceMeshDetector());
-			if (detector->Start(commandCandidates[i], lastError)) {
-				scriptPath = backendScript;
-				error.clear();
-				return std::unique_ptr<FaceDetectionBackend>(detector.release());
+		try {
+			std::unique_ptr<OnnxBlazeFaceDetector> detector(new OnnxBlazeFaceDetector());
+			if (!detector->Initialize(modelFile, error)) {
+				return std::unique_ptr<FaceDetectionBackend>();
 			}
+			modelPath = modelFile;
+			error.clear();
+			return std::unique_ptr<FaceDetectionBackend>(detector.release());
+		}
+		catch (const Ort::Exception& e) {
+			error = wxString::Format(
+				wxT("BlazeFace init failed: %s"),
+				wxString::FromUTF8(e.what()).c_str());
+		}
+		catch (const std::exception& e) {
+			error = wxString::Format(
+				wxT("BlazeFace init failed: %s"),
+				wxString::FromUTF8(e.what()).c_str());
+		}
+		catch (...) {
+			error = wxT("BlazeFace init failed (unknown exception)");
 		}
 
-		error = lastError;
 		return std::unique_ptr<FaceDetectionBackend>();
 	}
 
-	virtual ~MediaPipeFaceMeshDetector()
-	{
-		Stop();
-	}
+	virtual ~OnnxBlazeFaceDetector() {}
 
-	virtual const char* GetName() const { return "MediaPipe Face Detection"; }
+	virtual const char* GetName() const { return "MediaPipe BlazeFace"; }
 
 	virtual bool Detect(
 		const cv::Mat& image,
@@ -480,297 +425,308 @@ public:
 		bool preferCurrentFace,
 		FaceDetectionResult& selectedFace)
 	{
-		wxUnusedVar(currentTrackArea);
-		wxUnusedVar(preferCurrentFace);
+		if (image.empty() || m_session.get() == NULL) return false;
 
-		if (image.empty()) {
-			return false;
+		const int imgW = image.cols;
+		const int imgH = image.rows;
+		const float scale = std::min(
+			static_cast<float>(kInputSize) / static_cast<float>(imgW),
+			static_cast<float>(kInputSize) / static_cast<float>(imgH));
+		const int newW = std::max(1, cvRound(imgW * scale));
+		const int newH = std::max(1, cvRound(imgH * scale));
+		const int padX = (kInputSize - newW) / 2;
+		const int padY = (kInputSize - newH) / 2;
+
+		cv::Mat resized;
+		cv::resize(image, resized, cv::Size(newW, newH), 0, 0, cv::INTER_LINEAR);
+
+		cv::Mat rgb;
+		if (resized.channels() == 1) {
+			cv::cvtColor(resized, rgb, cv::COLOR_GRAY2RGB);
 		}
-		if (!EnsureBackendRunning()) return false;
-
-		std::vector<uchar> encodedFrame;
-		if (!cv::imencode(".png", image, encodedFrame)) {
-			return false;
+		else if (resized.channels() == 4) {
+			cv::cvtColor(resized, rgb, cv::COLOR_BGRA2RGB);
 		}
-
-		const uint32_t frameSize = static_cast<uint32_t>(encodedFrame.size());
-		if (m_transportSocket == NULL ||
-			!SocketSendMessage(*m_transportSocket, encodedFrame.data(), encodedFrame.size())) {
-			SLOG_WARNING(
-				"MediaPipe backend socket write failed: frameSize=%u lastCount=%llu connected=%d",
-				frameSize,
-				m_transportSocket != NULL
-					? static_cast<unsigned long long>(m_transportSocket->LastCount())
-					: 0ULL,
-				m_transportSocket != NULL && m_transportSocket->IsConnected() ? 1 : 0);
-			DrainErrorStream();
-			Stop();
-			return false;
+		else {
+			cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
 		}
 
-		wxString responseLine;
-		if (m_transportSocket == NULL || !SocketReceiveMessage(*m_transportSocket, responseLine)) {
-			SLOG_WARNING("MediaPipe backend socket response timed out or failed");
-			DrainErrorStream();
-			Stop();
-			return false;
-		}
-		SLOG_DEBUG("MediaPipe backend response: %s", ToUtf8(responseLine).c_str());
-		DrainErrorStream();
+		cv::Mat padded(kInputSize, kInputSize, CV_8UC3, cv::Scalar(0, 0, 0));
+		rgb.copyTo(padded(cv::Rect(padX, padY, newW, newH)));
 
-		return ParseResponse(responseLine, 1.0, image.size(), selectedFace);
-	}
-
-private:
-	MediaPipeFaceMeshDetector()
-		: m_process(NULL)
-		, m_pid(0)
-		, m_childStdout(NULL)
-		, m_childStderr(NULL)
-		, m_transportSocket(NULL)
-	{
-	}
-
-	bool Start(const wxString& command, wxString& error)
-	{
-		m_command = command;
-		Stop();
-
-		m_process = new wxProcess();
-		m_process->Redirect();
-
-		int executeFlags = wxEXEC_ASYNC;
-#if defined(__WXMSW__) && defined(wxEXEC_HIDE_CONSOLE)
-		executeFlags |= wxEXEC_HIDE_CONSOLE;
-#endif
-		m_pid = wxExecute(command, executeFlags, m_process);
-		if (m_pid == 0) {
-			delete m_process;
-			m_process = NULL;
-			error = wxString::Format(wxT("Failed to execute: %s"), command.c_str());
-			return false;
+		cv::Mat normalized;
+		padded.convertTo(normalized, CV_32FC3, 1.0 / 127.5, -1.0);
+		if (!normalized.isContinuous()) {
+			normalized = normalized.clone();
 		}
 
-		m_childStdout = m_process->GetInputStream();
-		m_childStderr = m_process->GetErrorStream();
+		std::array<int64_t, 4> inputShape = { 1, kInputSize, kInputSize, 3 };
+		const size_t inputElements =
+			static_cast<size_t>(kInputSize) * kInputSize * 3;
 
-		if (m_childStdout == NULL) {
-			error = wxT("MediaPipe backend process streams are unavailable");
-			Stop();
-			return false;
-		}
+		try {
+			Ort::MemoryInfo memInfo = Ort::MemoryInfo::CreateCpu(
+				OrtArenaAllocator, OrtMemTypeDefault);
+			Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
+				memInfo,
+				reinterpret_cast<float*>(normalized.data),
+				inputElements,
+				inputShape.data(),
+				inputShape.size());
 
-		wxString readyLine;
-		if (!ReadLineWithTimeout(readyLine, MEDIAPIPE_READY_TIMEOUT_MS)) {
-			DrainErrorStream();
-			error = wxString::Format(
-				wxT("MediaPipe backend did not become ready (response: %s)"),
-				readyLine.c_str());
-			Stop();
-			return false;
-		}
-		if (!ConnectTransportSocket(readyLine, error)) {
-			DrainErrorStream();
-			Stop();
-			return false;
-		}
-
-		if (m_process->GetOutputStream() != NULL) {
-			m_process->CloseOutput();
-		}
-
-		DrainErrorStream();
-		return true;
-	}
-
-	void Stop()
-	{
-		if (m_transportSocket != NULL) {
-			if (m_transportSocket->IsConnected()) {
-				m_transportSocket->Close();
+			const char* inputNames[1] = { m_inputName.c_str() };
+			std::vector<const char*> outputNames;
+			outputNames.reserve(m_outputNames.size());
+			for (size_t i = 0; i < m_outputNames.size(); ++i) {
+				outputNames.push_back(m_outputNames[i].c_str());
 			}
-			m_transportSocket->Destroy();
-			m_transportSocket = NULL;
+
+			std::vector<Ort::Value> outputs = m_session->Run(
+				Ort::RunOptions{ nullptr },
+				inputNames,
+				&inputTensor,
+				1,
+				outputNames.data(),
+				outputNames.size());
+
+			return DecodeAndSelect(
+				outputs, scale, padX, padY, image.size(),
+				currentTrackArea, preferCurrentFace, selectedFace);
 		}
-
-		if (m_process != NULL) {
-			if (m_process->GetOutputStream() != NULL) {
-				m_process->CloseOutput();
-			}
-			if (m_pid != 0) {
-				const wxKillError killResult =
-					wxProcess::Kill(static_cast<int>(m_pid), wxSIGTERM, wxKILL_CHILDREN);
-				if (killResult != wxKILL_OK && killResult != wxKILL_NO_PROCESS) {
-					SLOG_WARNING("Failed to terminate MediaPipe backend process: pid=%ld", m_pid);
-				}
-			}
-			delete m_process;
-			m_process = NULL;
+		catch (const Ort::Exception& e) {
+			SLOG_WARNING("BlazeFace inference failed: %s", e.what());
 		}
-
-		m_pid = 0;
-		m_childStdout = NULL;
-		m_childStderr = NULL;
-	}
-
-	bool EnsureBackendRunning()
-	{
-		if (m_process != NULL &&
-			m_transportSocket != NULL &&
-			m_transportSocket->IsConnected()) {
-			return true;
+		catch (const std::exception& e) {
+			SLOG_WARNING("BlazeFace inference failed: %s", e.what());
 		}
-
-		if (m_command.IsEmpty()) return false;
-
-		wxString error;
-		if (!Start(m_command, error)) {
-			SLOG_WARNING(
-				"MediaPipe backend restart failed: %s",
-				ToUtf8(error).c_str());
-			return false;
-		}
-
-		SLOG_INFO("MediaPipe backend restarted");
-		return true;
-	}
-
-	bool ReadLineWithTimeout(wxString& line, long timeoutMs)
-	{
-		line.clear();
-		if (m_childStdout == NULL) return false;
-
-		wxStopWatch timer;
-		while (timer.Time() < timeoutMs) {
-			if (m_childStdout->CanRead()) {
-				wxTextInputStream textInput(*m_childStdout);
-				line = textInput.ReadLine();
-				return true;
-			}
-			wxMilliSleep(10);
+		catch (...) {
+			SLOG_WARNING("BlazeFace inference failed (unknown exception)");
 		}
 
 		return false;
 	}
 
-	bool ConnectTransportSocket(const wxString& readyLine, wxString& error)
+private:
+	struct Anchor {
+		float x;
+		float y;
+	};
+
+	static const int kInputSize = 256;
+	static const int kNumAnchors = 896;
+	static const int kNumHeads = 2;
+	static const int kRegressorSize = 16;
+	static const int kLandmarkCount = 5;
+	static constexpr float kScoreThreshold = 0.5f;
+
+	OnnxBlazeFaceDetector()
+	: m_env(ORT_LOGGING_LEVEL_WARNING, "eviacam_blazeface")
+	{}
+
+	bool Initialize(const wxString& modelPath, wxString& error)
 	{
-		const wxString prefix = wxT("READY PORT=");
-		if (readyLine.Left(prefix.Length()) != prefix) {
+		Ort::SessionOptions options;
+		options.SetIntraOpNumThreads(1);
+		options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
+
+#if defined(__WXMSW__)
+		const std::wstring widePath = modelPath.ToStdWstring();
+		m_session.reset(new Ort::Session(m_env, widePath.c_str(), options));
+#else
+		const std::string utf8Path = ToUtf8(modelPath);
+		m_session.reset(new Ort::Session(m_env, utf8Path.c_str(), options));
+#endif
+
+		Ort::AllocatorWithDefaultOptions allocator;
+		{
+			Ort::AllocatedStringPtr namePtr =
+				m_session->GetInputNameAllocated(0, allocator);
+			m_inputName = namePtr.get();
+		}
+
+		const size_t outputCount = m_session->GetOutputCount();
+		m_outputNames.reserve(outputCount);
+		for (size_t i = 0; i < outputCount; ++i) {
+			Ort::AllocatedStringPtr namePtr =
+				m_session->GetOutputNameAllocated(i, allocator);
+			m_outputNames.push_back(std::string(namePtr.get()));
+		}
+
+		if (outputCount != 4) {
 			error = wxString::Format(
-				wxT("Unexpected MediaPipe backend ready response: %s"),
-				readyLine.c_str());
+				wxT("Unexpected BlazeFace output count: %u"),
+				static_cast<unsigned>(outputCount));
 			return false;
 		}
 
-		wxString portText = readyLine.Mid(prefix.Length());
-		portText.Trim(true);
-		portText.Trim(false);
-
-		long portLong = 0;
-		if (!portText.ToLong(&portLong) || portLong <= 0 || portLong > 65535) {
+		GenerateAnchors();
+		if (m_anchors.size() != kNumAnchors) {
 			error = wxString::Format(
-				wxT("Invalid MediaPipe backend port: %s"),
-				portText.c_str());
+				wxT("Anchor generation produced %u entries (expected %d)"),
+				static_cast<unsigned>(m_anchors.size()),
+				kNumAnchors);
 			return false;
 		}
 
-		wxSocketClient* socket =
-			new wxSocketClient(static_cast<wxSocketFlags>(wxSOCKET_BLOCK | wxSOCKET_WAITALL));
-		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_CONNECT_TIMEOUT_MS));
-
-		wxIPV4address address;
-		address.Hostname(wxT("127.0.0.1"));
-		address.Service(static_cast<unsigned short>(portLong));
-
-		if (!socket->Connect(address, true)) {
-			error = wxString::Format(
-				wxT("Failed to connect to MediaPipe backend transport socket on port %ld"),
-				portLong);
-			socket->Destroy();
-			return false;
-		}
-		socket->SetTimeout(TimeoutMsToSeconds(MEDIAPIPE_SOCKET_IO_TIMEOUT_MS));
-
-		m_transportSocket = socket;
 		return true;
 	}
 
-	void DrainErrorStream()
+	void GenerateAnchors()
 	{
-		if (m_childStderr == NULL) return;
+		m_anchors.clear();
+		m_anchors.reserve(kNumAnchors);
 
-		while (m_childStderr->CanRead()) {
-			wxTextInputStream textInput(*m_childStderr);
-			const wxString errorLine = textInput.ReadLine();
-			if (!errorLine.IsEmpty()) {
-				SLOG_WARNING("MediaPipe backend: %s", ToUtf8(errorLine).c_str());
+		const int numLayers = 4;
+		const int strides[4] = { 16, 32, 32, 32 };
+		const float anchorOffsetX = 0.5f;
+		const float anchorOffsetY = 0.5f;
+
+		int layer = 0;
+		while (layer < numLayers) {
+			int lastSameStrideLayer = layer;
+			int anchorsPerCell = 0;
+			while (lastSameStrideLayer < numLayers &&
+				strides[lastSameStrideLayer] == strides[layer]) {
+				anchorsPerCell += 2; // base aspect-ratio anchor + interpolated anchor
+				lastSameStrideLayer += 1;
 			}
+
+			const int stride = strides[layer];
+			const int fmH = kInputSize / stride;
+			const int fmW = kInputSize / stride;
+			for (int y = 0; y < fmH; ++y) {
+				for (int x = 0; x < fmW; ++x) {
+					for (int c = 0; c < anchorsPerCell; ++c) {
+						Anchor a;
+						a.x = (static_cast<float>(x) + anchorOffsetX) /
+							static_cast<float>(fmW);
+						a.y = (static_cast<float>(y) + anchorOffsetY) /
+							static_cast<float>(fmH);
+						m_anchors.push_back(a);
+					}
+				}
+			}
+			layer = lastSameStrideLayer;
 		}
 	}
 
-	bool ParseResponse(
-		const wxString& responseLine,
-		double scale,
+	bool DecodeAndSelect(
+		const std::vector<Ort::Value>& outputs,
+		float scale,
+		int padX,
+		int padY,
 		const cv::Size& imageSize,
+		const cv::Rect& currentTrackArea,
+		bool preferCurrentFace,
 		FaceDetectionResult& selectedFace)
 	{
-		std::istringstream iss(ToUtf8(responseLine));
-		iss.imbue(std::locale::classic());
-		std::string status;
-		iss >> status;
-		if (status != "OK") return false;
+		const float* classifHeads[kNumHeads] = { NULL, NULL };
+		const float* regressHeads[kNumHeads] = { NULL, NULL };
+		int classCounts[kNumHeads] = { 0, 0 };
+		int classIndex = 0;
+		int regIndex = 0;
 
-		double x = 0.0;
-		double y = 0.0;
-		double width = 0.0;
-		double height = 0.0;
-		double score = 0.0;
-		iss >> x >> y >> width >> height >> score;
-		if (!iss) {
+		for (size_t i = 0; i < outputs.size(); ++i) {
+			const Ort::Value& out = outputs[i];
+			auto info = out.GetTensorTypeAndShapeInfo();
+			std::vector<int64_t> shape = info.GetShape();
+			if (shape.size() != 3) continue;
+			const int64_t anchors = shape[1];
+			const int64_t width = shape[2];
+			const float* data = out.GetTensorData<float>();
+			if (width == 1 && classIndex < kNumHeads) {
+				classifHeads[classIndex] = data;
+				classCounts[classIndex] = static_cast<int>(anchors);
+				classIndex += 1;
+			}
+			else if (width == kRegressorSize && regIndex < kNumHeads) {
+				regressHeads[regIndex] = data;
+				regIndex += 1;
+			}
+		}
+
+		if (classIndex != kNumHeads || regIndex != kNumHeads) {
 			SLOG_WARNING(
-				"MediaPipe backend response parse failed after bbox: %s",
-				ToUtf8(responseLine).c_str());
+				"BlazeFace output layout unexpected: class=%d reg=%d",
+				classIndex, regIndex);
 			return false;
 		}
 
-		selectedFace = FaceDetectionResult();
-		selectedFace.box = ClampRect(
-			cv::Rect(
-				cvRound(x / scale),
-				cvRound(y / scale),
-				cvRound(width / scale),
-				cvRound(height / scale)),
-			imageSize);
-		selectedFace.score = static_cast<float>(score);
+		const float inputSizeF = static_cast<float>(kInputSize);
+		std::vector<FaceDetectionResult> detections;
+		int anchorOffset = 0;
+		for (int h = 0; h < kNumHeads; ++h) {
+			const int count = classCounts[h];
+			const float* classif = classifHeads[h];
+			const float* reg = regressHeads[h];
+			for (int i = 0; i < count; ++i) {
+				if (anchorOffset >= static_cast<int>(m_anchors.size())) break;
+				float rawScore = classif[i];
+				if (rawScore < -100.0f) rawScore = -100.0f;
+				if (rawScore > 100.0f) rawScore = 100.0f;
+				const float score = 1.0f / (1.0f + std::exp(-rawScore));
+				if (score < kScoreThreshold) {
+					anchorOffset += 1;
+					continue;
+				}
 
-		for (int i = 0; i < 5; ++i) {
-			double landmarkX = 0.0;
-			double landmarkY = 0.0;
-			iss >> landmarkX >> landmarkY;
-			if (!iss) {
-				SLOG_WARNING(
-					"MediaPipe backend response parse failed on landmark %d: %s",
-					i,
-					ToUtf8(responseLine).c_str());
-				return false;
+				const float* r = reg + i * kRegressorSize;
+				const Anchor& anchor = m_anchors[anchorOffset];
+				const float cx = r[0] / inputSizeF + anchor.x;
+				const float cy = r[1] / inputSizeF + anchor.y;
+				const float w = r[2] / inputSizeF;
+				const float hh = r[3] / inputSizeF;
+
+				const float boxX = (cx - w * 0.5f) * inputSizeF;
+				const float boxY = (cy - hh * 0.5f) * inputSizeF;
+				const float boxW = w * inputSizeF;
+				const float boxH = hh * inputSizeF;
+
+				const float origX = (boxX - padX) / scale;
+				const float origY = (boxY - padY) / scale;
+				const float origW = boxW / scale;
+				const float origH = boxH / scale;
+
+				cv::Rect rect(
+					cvRound(origX),
+					cvRound(origY),
+					cvRound(origW),
+					cvRound(origH));
+				rect = ClampRect(rect, imageSize);
+				if (rect.area() <= 0) {
+					anchorOffset += 1;
+					continue;
+				}
+
+				FaceDetectionResult result;
+				result.box = rect;
+				result.score = score;
+				for (int k = 0; k < kLandmarkCount; ++k) {
+					const float kpX =
+						(r[4 + 2 * k] / inputSizeF + anchor.x) * inputSizeF;
+					const float kpY =
+						(r[5 + 2 * k] / inputSizeF + anchor.y) * inputSizeF;
+					const float origKpX = (kpX - padX) / scale;
+					const float origKpY = (kpY - padY) / scale;
+					result.landmarks.push_back(cv::Point2f(origKpX, origKpY));
+				}
+				detections.push_back(result);
+				anchorOffset += 1;
 			}
-
-			selectedFace.landmarks.push_back(Point2f(
-				static_cast<float>(landmarkX / scale),
-				static_cast<float>(landmarkY / scale)));
 		}
 
-		return selectedFace.box.area() > 0 && selectedFace.landmarks.size() >= 3;
+		return SelectFaceDetection(
+			detections, currentTrackArea, preferCurrentFace, selectedFace);
 	}
 
-	wxProcess* m_process;
-	long m_pid;
-	wxInputStream* m_childStdout;
-	wxInputStream* m_childStderr;
-	wxSocketClient* m_transportSocket;
-	wxString m_command;
+	Ort::Env m_env;
+	std::unique_ptr<Ort::Session> m_session;
+	std::string m_inputName;
+	std::vector<std::string> m_outputNames;
+	std::vector<Anchor> m_anchors;
 };
+
+#endif // ENABLE_ONNXRUNTIME_BACKEND
 
 class HaarFaceDetector : public FaceDetectionBackend {
 public:
@@ -837,119 +793,17 @@ private:
 	cv::CascadeClassifier m_cascade;
 };
 
-#if defined(ENABLE_YUNET_FACE_DETECTOR)
-class YuNetFaceDetector : public FaceDetectionBackend {
-public:
-	static std::unique_ptr<FaceDetectionBackend> Create(wxString& modelPath, wxString& error)
-	{
-		const wxString yuNetPath = FindFirstExistingFile(
-			GetPackagedFileCandidates(wxT("face_detection_yunet_2023mar.onnx")));
-		if (yuNetPath.IsEmpty()) {
-			error = wxT("Could not find face_detection_yunet_2023mar.onnx");
-			return std::unique_ptr<FaceDetectionBackend>();
-		}
-
-		try {
-			std::unique_ptr<YuNetFaceDetector> detector(new YuNetFaceDetector());
-			detector->m_detector = cv::FaceDetectorYN::create(
-				ToUtf8(yuNetPath),
-				"",
-				cv::Size(320, 320),
-				YUNET_SCORE_THRESHOLD,
-				YUNET_NMS_THRESHOLD,
-				YUNET_TOP_K);
-
-			modelPath = yuNetPath;
-			error.clear();
-			return std::unique_ptr<FaceDetectionBackend>(detector.release());
-		}
-		catch (const cv::Exception& e) {
-			error = wxString(e.what(), wxConvUTF8);
-		}
-		catch (...) {
-			error = wxT("Failed to initialize YuNet backend");
-		}
-
-		return std::unique_ptr<FaceDetectionBackend>();
-	}
-
-	virtual const char* GetName() const { return "YuNet"; }
-
-	virtual bool Detect(
-		const cv::Mat& image,
-		const cv::Rect& currentTrackArea,
-		bool preferCurrentFace,
-		FaceDetectionResult& selectedFace)
-	{
-		if (image.empty()) return false;
-
-		double scale = 1.0;
-		cv::Mat resized = image;
-		const int maxSide = std::max(image.cols, image.rows);
-		if (maxSide > YUNET_MAX_INPUT_SIDE) {
-			scale = static_cast<double>(YUNET_MAX_INPUT_SIDE) / static_cast<double>(maxSide);
-			cv::resize(image, resized, cv::Size(), scale, scale, cv::INTER_LINEAR);
-		}
-
-		m_detector->setInputSize(resized.size());
-
-		cv::Mat detections;
-		m_detector->detect(resized, detections);
-		if (detections.empty()) return false;
-
-		std::vector<FaceDetectionResult> results;
-		for (int row = 0; row < detections.rows; ++row) {
-			const float score = detections.at<float>(row, 14);
-			if (score < YUNET_SCORE_THRESHOLD) continue;
-
-			const int x = cvRound(detections.at<float>(row, 0) / scale);
-			const int y = cvRound(detections.at<float>(row, 1) / scale);
-			const int width = cvRound(detections.at<float>(row, 2) / scale);
-			const int height = cvRound(detections.at<float>(row, 3) / scale);
-			const cv::Rect face = ClampRect(cv::Rect(x, y, width, height), image.size());
-			if (face.area() <= 0) continue;
-
-			FaceDetectionResult result;
-			result.box = face;
-			result.score = score;
-			for (int landmarkIndex = 0; landmarkIndex < 5; ++landmarkIndex) {
-				const float landmarkX = detections.at<float>(row, 4 + landmarkIndex * 2);
-				const float landmarkY = detections.at<float>(row, 5 + landmarkIndex * 2);
-				const Point2f landmark(
-					static_cast<float>(landmarkX / scale),
-					static_cast<float>(landmarkY / scale));
-				if (face.contains(cv::Point(cvRound(landmark.x), cvRound(landmark.y)))) {
-					result.landmarks.push_back(landmark);
-				}
-			}
-			results.push_back(result);
-		}
-
-		return SelectFaceDetection(results, currentTrackArea, preferCurrentFace, selectedFace);
-	}
-
-private:
-	YuNetFaceDetector() {}
-
-	cv::Ptr<cv::FaceDetectorYN> m_detector;
-};
-#endif
-
 static bool UsesSynchronousLandmarkTracking(const FaceDetectionBackend* backend)
 {
-	if (backend == NULL) return false;
-
-	const std::string backendName = backend->GetName();
-	// YuNet runs in-process and exposes richer landmarks, so it can drive the
-	// tracker directly from the main loop.
-	return backendName == "YuNet";
+	wxUnusedVar(backend);
+	return false;
 }
 
 static bool UsesDetectionDrivenTracking(const FaceDetectionBackend* backend)
 {
 	if (backend == NULL) return false;
 
-	return std::string(backend->GetName()) == "MediaPipe Face Detection";
+	return std::string(backend->GetName()) == "MediaPipe BlazeFace";
 }
 
 #if defined(ENABLE_ONNXRUNTIME_BACKEND)
@@ -984,24 +838,41 @@ static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& av
 
 #if defined(ENABLE_ONNXRUNTIME_BACKEND)
 	LogOnnxRuntimeSmokeTest();
-#endif
 
-	wxString mediaPipeScript;
-	wxString mediaPipeError;
-	std::unique_ptr<FaceDetectionBackend> mediaPipeBackend =
-		MediaPipeFaceMeshDetector::Create(mediaPipeScript, mediaPipeError);
-	if (mediaPipeBackend.get() != NULL) {
+	wxString blazeFacePath;
+	wxString blazeFaceError;
+	std::unique_ptr<FaceDetectionBackend> blazeFaceBackend =
+		OnnxBlazeFaceDetector::Create(blazeFacePath, blazeFaceError);
+	if (blazeFaceBackend.get() != NULL) {
 		SLOG_INFO(
 			"Using face detector backend: %s (%s)",
-			mediaPipeBackend->GetName(),
-			ToUtf8(mediaPipeScript).c_str());
+			blazeFaceBackend->GetName(),
+			ToUtf8(blazeFacePath).c_str());
 		available = true;
-		return mediaPipeBackend;
+		return blazeFaceBackend;
 	}
 
 	SLOG_WARNING(
-		"MediaPipe Face Detection backend unavailable and fallback is disabled: %s",
-		ToUtf8(mediaPipeError).c_str());
+		"BlazeFace backend unavailable, falling back to Haar: %s",
+		ToUtf8(blazeFaceError).c_str());
+#endif
+
+	wxString haarPath;
+	wxString haarError;
+	std::unique_ptr<FaceDetectionBackend> haarBackend =
+		HaarFaceDetector::Create(haarPath, haarError);
+	if (haarBackend.get() != NULL) {
+		SLOG_INFO(
+			"Using face detector backend: %s (%s)",
+			haarBackend->GetName(),
+			ToUtf8(haarPath).c_str());
+		available = true;
+		return haarBackend;
+	}
+
+	SLOG_WARNING(
+		"Haar face detector backend unavailable: %s",
+		ToUtf8(haarError).c_str());
 	return std::unique_ptr<FaceDetectionBackend>();
 }
 
