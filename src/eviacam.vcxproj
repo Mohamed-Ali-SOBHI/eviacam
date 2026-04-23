@@ -390,7 +390,7 @@ if not exist $(TargetDir)mediapipe_face_mesh_backend.py copy "$(ProjectDir)data\
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>..\;..\simplelog;..\creavision;..\wxcamwindow;..\wxutil;$(WXWIN)\lib\vc14x_x64_dll\mswu;$(WXWIN)\include;$(CVPATH)\build\include;$(ORT_ROOT)\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;WXUSINGDLL;ENABLE_YUNET_FACE_DETECTOR;ENABLE_ONNXRUNTIME_BACKEND;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOPCH;__WXMSW__;WXUSINGDLL;ENABLE_YUNET_FACE_DETECTOR;ENABLE_ONNXRUNTIME_BACKEND;_HAS_STD_BYTE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>

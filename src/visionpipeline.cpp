@@ -961,10 +961,10 @@ static void LogOnnxRuntimeSmokeTest()
 
 	try {
 		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "eviacam");
-		const char* version = Ort::GetVersionString();
+		std::string version = Ort::GetVersionString();
 		SLOG_INFO(
 			"onnxruntime smoke test OK: version=%s",
-			version != NULL ? version : "unknown");
+			version.empty() ? "unknown" : version.c_str());
 	}
 	catch (const Ort::Exception& e) {
 		SLOG_WARNING("onnxruntime smoke test failed: %s", e.what());
