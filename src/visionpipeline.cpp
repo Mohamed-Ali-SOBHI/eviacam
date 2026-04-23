@@ -34,6 +34,9 @@
 #if defined(ENABLE_YUNET_FACE_DETECTOR)
 #include <opencv2/objdetect.hpp>
 #endif
+#if defined(ENABLE_ONNXRUNTIME_BACKEND)
+#include <onnxruntime_cxx_api.h>
+#endif
 
 #include <math.h>
 
@@ -949,9 +952,39 @@ static bool UsesDetectionDrivenTracking(const FaceDetectionBackend* backend)
 	return std::string(backend->GetName()) == "MediaPipe Face Detection";
 }
 
+#if defined(ENABLE_ONNXRUNTIME_BACKEND)
+static void LogOnnxRuntimeSmokeTest()
+{
+	static bool s_logged = false;
+	if (s_logged) return;
+	s_logged = true;
+
+	try {
+		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "eviacam");
+		const char* version = Ort::GetVersionString();
+		SLOG_INFO(
+			"onnxruntime smoke test OK: version=%s",
+			version != NULL ? version : "unknown");
+	}
+	catch (const Ort::Exception& e) {
+		SLOG_WARNING("onnxruntime smoke test failed: %s", e.what());
+	}
+	catch (const std::exception& e) {
+		SLOG_WARNING("onnxruntime smoke test failed: %s", e.what());
+	}
+	catch (...) {
+		SLOG_WARNING("onnxruntime smoke test failed (unknown exception)");
+	}
+}
+#endif
+
 static std::unique_ptr<FaceDetectionBackend> CreateFaceDetectionBackend(bool& available)
 {
 	available = false;
+
+#if defined(ENABLE_ONNXRUNTIME_BACKEND)
+	LogOnnxRuntimeSmokeTest();
+#endif
 
 	wxString mediaPipeScript;
 	wxString mediaPipeError;

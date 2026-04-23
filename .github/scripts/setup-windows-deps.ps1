@@ -112,6 +112,27 @@ New-Item -ItemType Directory -Force -Path $opencvExtractRoot | Out-Null
 
 $opencvRoot = Find-OpenCvRoot -SearchRoot $opencvExtractRoot
 
+$ortVersion = "1.20.1"
+$ortArchive = Join-Path $downloadsRoot "onnxruntime-win-x64-${ortVersion}.zip"
+$ortExtractRoot = Join-Path $extractRoot "onnxruntime"
+
+Download-File -Url "https://github.com/microsoft/onnxruntime/releases/download/v${ortVersion}/onnxruntime-win-x64-${ortVersion}.zip" -Destination $ortArchive
+
+if (Test-Path $ortExtractRoot) {
+    Remove-Item -Path $ortExtractRoot -Recurse -Force
+}
+
+New-Item -ItemType Directory -Force -Path $ortExtractRoot | Out-Null
+Expand-Archive -Path $ortArchive -DestinationPath $ortExtractRoot -Force
+
+$ortRoot = Get-ChildItem -Path $ortExtractRoot -Directory |
+    Where-Object { Test-Path (Join-Path $_.FullName "include\onnxruntime_cxx_api.h") } |
+    Select-Object -First 1 -ExpandProperty FullName
+
+if (-not $ortRoot) {
+    throw "Unable to locate an extracted onnxruntime root under $ortExtractRoot"
+}
+
 $configHeader = Join-Path $repoRoot "config.h"
 $versionHeader = Join-Path $repoRoot "src\version.h"
 
@@ -129,8 +150,10 @@ $versionHeader = Join-Path $repoRoot "src\version.h"
 
 Write-Host "WXWIN=$wxRoot"
 Write-Host "CVPATH=$opencvRoot"
+Write-Host "ORT_ROOT=$ortRoot"
 Write-Host "Generated $configHeader"
 Write-Host "Generated $versionHeader"
 
 "WXWIN=$wxRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 "CVPATH=$opencvRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+"ORT_ROOT=$ortRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
