@@ -54,15 +54,24 @@ jobs:
             exit 0
           }
 
-          $matches = Select-String -Path msbuild.log -Pattern ': error ',': fatal error ',': warning ' | Select-Object -First 120
-          if ($matches) {
-            '## MSBuild diagnostics' | Tee-Object -FilePath $summaryPath -Append
+          $errors = Select-String -Path msbuild.log -Pattern ': error ',': fatal error ' | Select-Object -First 80
+          $warnings = Select-String -Path msbuild.log -Pattern ': warning ' | Select-Object -First 40
+
+          if ($errors) {
+            '## MSBuild errors' | Tee-Object -FilePath $summaryPath -Append
             '```text' | Tee-Object -FilePath $summaryPath -Append
-            $matches | ForEach-Object { $_.Line } | Tee-Object -FilePath $summaryPath -Append
+            $errors | ForEach-Object { $_.Line } | Tee-Object -FilePath $summaryPath -Append
             '```' | Tee-Object -FilePath $summaryPath -Append
           }
           else {
             'No error lines matched in msbuild.log.' | Tee-Object -FilePath $summaryPath -Append
+          }
+
+          if ($warnings) {
+            '## MSBuild warnings (first 40)' | Tee-Object -FilePath $summaryPath -Append
+            '```text' | Tee-Object -FilePath $summaryPath -Append
+            $warnings | ForEach-Object { $_.Line } | Tee-Object -FilePath $summaryPath -Append
+            '```' | Tee-Object -FilePath $summaryPath -Append
           }
 
       - name: Package build output
