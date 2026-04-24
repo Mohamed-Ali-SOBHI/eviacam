@@ -208,25 +208,33 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 	debug_mode = true;
 #endif
 
-	if (debug_mode) {
-		// Set log priority level
-		slog_set_priority (SLOG_PRIO_DEBUG);
+	// Always open a runtime log file so users can diagnose issues without
+	// having to relaunch with -d. Priority stays at the default (INFO) unless
+	// -d was passed, in which case DEBUG lines are included too and a console
+	// window is attached on Windows.
+	{
+		if (debug_mode) {
+			slog_set_priority(SLOG_PRIO_DEBUG);
+		}
 
 		wxString slogPath = wxFileName::GetTempDir() + wxFILE_SEP_PATH + wxT("eviacam-runtime.log");
 		FILE* slogFile = fopen(slogPath.mb_str(), "a");
 		if (slogFile != NULL) {
 			slog_stream_set_stream(slogFile);
-			fprintf(slogFile, "=== eviacam debug session start ===\n");
+			fprintf(slogFile, "=== eviacam session start (debug=%d) ===\n",
+				debug_mode ? 1 : 0);
 			fflush(slogFile);
 		}
 
 #if defined(WIN32)
-		AllocConsole();
-		freopen("CONOUT$", "wb", stdout);
-		freopen("CONOUT$", "wb", stderr);
-		slog_write (SLOG_PRIO_INFO, "debug mode enabled");
+		if (debug_mode) {
+			AllocConsole();
+			freopen("CONOUT$", "wb", stdout);
+			freopen("CONOUT$", "wb", stderr);
+			slog_write(SLOG_PRIO_INFO, "debug mode enabled");
+		}
 #endif
-	}	
+	}
 
 	wxString custom_config_path;
 	bool custom_config= parser.Found(wxT("c"), &custom_config_path);
