@@ -40,7 +40,8 @@ $requiredFiles = @(
     "opencv_world460.dll",
     "onnxruntime.dll",
     "haarcascade_frontalface_default.xml",
-    "face_detection_back_256x256.onnx"
+    "face_detection_back_256x256.onnx",
+    "face_mesh_192x192.onnx"
 )
 
 $missingFiles = @($requiredFiles | Where-Object { -not (Test-Path (Join-Path $artifactRoot $_)) })

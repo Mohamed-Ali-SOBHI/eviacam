@@ -175,6 +175,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_back_256x256.onnx copy "$(ProjectDir)data\face_detection_back_256x256.onnx" $(TargetDir)
+if not exist $(TargetDir)face_mesh_192x192.onnx copy "$(ProjectDir)data\face_mesh_192x192.onnx" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -280,6 +281,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_back_256x256.onnx copy "$(ProjectDir)data\face_detection_back_256x256.onnx" $(TargetDir)
+if not exist $(TargetDir)face_mesh_192x192.onnx copy "$(ProjectDir)data\face_mesh_192x192.onnx" $(TargetDir)
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -380,6 +382,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_back_256x256.onnx copy "$(ProjectDir)data\face_detection_back_256x256.onnx" $(TargetDir)
+if not exist $(TargetDir)face_mesh_192x192.onnx copy "$(ProjectDir)data\face_mesh_192x192.onnx" $(TargetDir)
 
 </Command>
     </PostBuildEvent>
@@ -485,6 +488,7 @@ xcopy "$(WXWIN)\lib\vc14x_x64_dll\wx*.dll" $(TargetDir) /D /Y /I
 
 if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(ProjectDir)data\haarcascade_frontalface_default.xml" $(TargetDir)
 if not exist $(TargetDir)face_detection_back_256x256.onnx copy "$(ProjectDir)data\face_detection_back_256x256.onnx" $(TargetDir)
+if not exist $(TargetDir)face_mesh_192x192.onnx copy "$(ProjectDir)data\face_mesh_192x192.onnx" $(TargetDir)
 
 </Command>
     </PostBuildEvent>
