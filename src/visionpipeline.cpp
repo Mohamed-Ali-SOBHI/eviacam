@@ -1560,15 +1560,26 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 			Point2f smoothedFaceAnchor = rawFaceAnchor;
 
 			if (m_hasPreviousFaceAnchor) {
+				float rawDx = m_previousFaceAnchor.x - rawFaceAnchor.x;
+				float rawDy = m_previousFaceAnchor.y - rawFaceAnchor.y;
+				ApplyDeadzone(
+					rawDx,
+					rawDy,
+					DETECTION_DRIVEN_FACE_DEADZONE_PX);
+
 				smoothedFaceAnchor = SmoothPoint(
 					m_previousFaceAnchor,
 					rawFaceAnchor,
 					DETECTION_DRIVEN_FACE_SMOOTHING);
-				float dx = m_previousFaceAnchor.x - smoothedFaceAnchor.x;
-				float dy = m_previousFaceAnchor.y - smoothedFaceAnchor.y;
-				ApplyDeadzone(dx, dy, DETECTION_DRIVEN_FACE_DEADZONE_PX);
-				xVel = 2.0f * dx;
-				yVel = 2.0f * -dy;
+
+				if (rawDx != 0.0f) {
+					xVel = 2.0f *
+						(m_previousFaceAnchor.x - smoothedFaceAnchor.x);
+				}
+				if (rawDy != 0.0f) {
+					yVel = 2.0f *
+						-(m_previousFaceAnchor.y - smoothedFaceAnchor.y);
+				}
 			}
 
 			m_previousFaceAnchor = smoothedFaceAnchor;
