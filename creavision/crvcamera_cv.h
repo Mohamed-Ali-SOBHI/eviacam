@@ -27,6 +27,7 @@ class CCameraCV : public CCamera
 {	
 public:
 	enum { MAX_CV_DEVICES= 10 };
+	enum { CAMERA_DEVICE_NAME_LENGTH = 255 };
 	CCameraCV(int cameraId= -1, unsigned int width= 320, 
               unsigned int height= 240, float fr= 30.0f);
 	virtual ~CCameraCV (void);
@@ -48,7 +49,7 @@ private:
 	cv::VideoCapture* m_pCvCapture;
 	static bool g_cvInitialized;
 	static int g_numDevices;
-	static char g_deviceNames[MAX_CV_DEVICES][50];
+	static char g_deviceNames[MAX_CV_DEVICES][CAMERA_DEVICE_NAME_LENGTH];
 };
 
 #if defined(WIN32)

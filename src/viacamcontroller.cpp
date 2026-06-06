@@ -82,7 +82,7 @@ void CViacamController::InitDefaults()
 {
 	m_runWizardAtStartup= true;
 	m_languageId= wxLANGUAGE_DEFAULT;
-	m_enabledAtStartup= false;
+	m_enabledAtStartup= true;
 	m_minimisedAtStartup = false;
 #if defined(__WXMSW__)
 	m_onScreenKeyboardCommand= _T("osk.exe");
@@ -170,6 +170,26 @@ bool testCamera(CCamera* cam) {
 	return !frame.empty();
 }
 
+static wxString NormalizeCameraDisplayName(const wxString& cameraName)
+{
+	wxString normalized(cameraName);
+	if (normalized.StartsWith(wxT(" (Id:"))) {
+		const int closingParenthesis = normalized.Find(wxT(") "));
+		if (closingParenthesis != wxNOT_FOUND) {
+			normalized = normalized.Mid(closingParenthesis + 2);
+		}
+	}
+
+	const int idSuffix = normalized.Find(wxT(" (Id:"));
+	if (idSuffix != wxNOT_FOUND) {
+		normalized = normalized.Left(idSuffix);
+	}
+
+	normalized.Trim(true);
+	normalized.Trim(false);
+	return normalized;
+}
+
 CCamera* CViacamController::SetUpCamera()
 {
 	// Load app local data
@@ -203,7 +223,10 @@ CCamera* CViacamController::SetUpCamera()
 		SLOG_INFO("Previous used camera: %s... ", (const char *) m_cameraName.mb_str());
 		for (camId = 0; camId < CCameraEnum::getNumDevices(0); camId++) {
 			camName = CCameraEnum::getDeviceName(0, camId);
-			if (wxString(camName, wxConvLibc) == m_cameraName) {
+			const wxString availableCameraName(camName, wxConvLibc);
+			if (availableCameraName == m_cameraName ||
+				NormalizeCameraDisplayName(availableCameraName) ==
+					NormalizeCameraDisplayName(m_cameraName)) {
 				SLOG_INFO("FOUND");
 				break;
 			}
@@ -216,36 +239,39 @@ CCamera* CViacamController::SetUpCamera()
 	}
 
 	/*
-		Show selection dialog when needed (use native driver names)
+		Show the camera selection dialog on every start when multiple cameras
+		are available. Keep the previously used camera preselected.
 	*/
 	SLOG_INFO("Detected %d camera(s)", CCameraEnum::getNumDevices(0));
-	if (camId == -1) {
-		if (CCameraEnum::getNumDevices(0) > 1) {
-			wxArrayString strArray;
+	if (CCameraEnum::getNumDevices(0) > 1) {
+		wxArrayString strArray;
 
-			for (int i = 0; i < CCameraEnum::getNumDevices(0); i++) {
-				strArray.Add(wxString(CCameraEnum::getDeviceName(0, i), wxConvLibc));
-			}
-
-			wxSingleChoiceDialog choiceDlg(
-				NULL, _("Choose the camera to use"), _T("Enable Viacam"), strArray,
-				static_cast<void**>(NULL), wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
-
-			if (choiceDlg.ShowModal ()!= wxID_OK) return NULL;
-
-			camId= choiceDlg.GetSelection();
-			m_cameraName= choiceDlg.GetStringSelection ();
-		} 
-		else {
-			camId= 0;
-			m_cameraName = wxString(CCameraEnum::getDeviceName(0, camId), wxConvLibc);
+		for (int i = 0; i < CCameraEnum::getNumDevices(0); i++) {
+			strArray.Add(wxString(CCameraEnum::getDeviceName(0, i), wxConvLibc));
 		}
+
+		wxSingleChoiceDialog choiceDlg(
+			NULL, _("Choose the camera to use"), _T("Enable Viacam"), strArray,
+			static_cast<void**>(NULL), wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
+		choiceDlg.SetSelection(camId >= 0 ? camId : 0);
+
+		if (choiceDlg.ShowModal ()!= wxID_OK) return NULL;
+
+		camId= choiceDlg.GetSelection();
+		m_cameraName= choiceDlg.GetStringSelection ();
+	}
+	else {
+		camId= 0;
+		m_cameraName = wxString(CCameraEnum::getDeviceName(0, camId), wxConvLibc);
 	}
 
 	/*
 		Try to open the camera to make sure it works
 	*/
-	SLOG_INFO("Selected camera: %d", camId);
+	SLOG_INFO(
+		"Selected camera: %d (%s)",
+		camId,
+		(const char *) m_cameraName.mb_str());
 	SLOG_INFO("Try to open the camera to make sure it works...");
 	// native driver first
 	CCamera* cam = CCameraEnum::getCamera(1, camId);

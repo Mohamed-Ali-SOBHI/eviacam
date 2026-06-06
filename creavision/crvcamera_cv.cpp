@@ -24,10 +24,11 @@
 
 bool CCameraCV::g_cvInitialized= false;
 int CCameraCV::g_numDevices= 0;
-char CCameraCV::g_deviceNames[MAX_CV_DEVICES][50];
+char CCameraCV::g_deviceNames[MAX_CV_DEVICES][CAMERA_DEVICE_NAME_LENGTH];
 
 #if defined(WIN32)
 #include <windows.h>
+#include "videoInput.h"
 
 #define MAX_KEY_LENGTH 255
 #define MAX_VALUE_NAME 16383
@@ -173,6 +174,33 @@ int CCameraCV::GetNumDevices()
 	if (!g_cvInitialized) {		
 		g_cvInitialized= true; 
 
+#if defined(WIN32)
+		g_numDevices = videoInput::listDevices(true);
+		if (g_numDevices > MAX_CV_DEVICES) {
+			g_numDevices = MAX_CV_DEVICES;
+		}
+
+		for (int i = 0; i < g_numDevices; ++i) {
+			const char* deviceName = videoInput::getDeviceName(i);
+			if (deviceName != NULL && deviceName[0] != '\0') {
+				_snprintf_s(
+					g_deviceNames[i],
+					CAMERA_DEVICE_NAME_LENGTH,
+					_TRUNCATE,
+					"%s (Id:%d)",
+					deviceName,
+					i);
+			}
+			else {
+				_snprintf_s(
+					g_deviceNames[i],
+					CAMERA_DEVICE_NAME_LENGTH,
+					_TRUNCATE,
+					"Camera (Id:%d)",
+					i);
+			}
+		}
+#else
 		int i;
 		cv::VideoCapture tmpCapture;
 
@@ -190,6 +218,7 @@ int CCameraCV::GetNumDevices()
 			sprintf (g_deviceNames[i], "Camera (Id:%d)", i);
 		}		
 		g_numDevices= i;
+#endif
 	}
 	return g_numDevices;
 }
