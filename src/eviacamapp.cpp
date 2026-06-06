@@ -213,9 +213,7 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 	// -d was passed, in which case DEBUG lines are included too and a console
 	// window is attached on Windows.
 	{
-		if (debug_mode) {
-			slog_set_priority(SLOG_PRIO_DEBUG);
-		}
+		slog_set_priority(debug_mode ? SLOG_PRIO_DEBUG : SLOG_PRIO_INFO);
 
 		wxString slogPath = wxFileName::GetTempDir() + wxFILE_SEP_PATH + wxT("eviacam-runtime.log");
 		FILE* slogFile = fopen(slogPath.mb_str(), "a");
