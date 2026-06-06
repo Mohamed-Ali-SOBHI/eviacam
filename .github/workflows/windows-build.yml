@@ -79,12 +79,27 @@ jobs:
         shell: pwsh
         run: .github\scripts\package-windows-build.ps1
 
-      - name: Upload artifact
+      - name: Install Inno Setup
+        if: steps.build.outcome == 'success'
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows installer
+        if: steps.build.outcome == 'success'
+        shell: pwsh
+        run: .github\scripts\build-windows-installer.ps1
+
+      - name: Upload distribution files
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
-          name: eviacam-windows-x64
-          path: ${{ env.ARTIFACT_ZIP }}
+          name: eviacam-${{ env.EVIACAM_VERSION }}-windows-x64
+          path: |
+            ${{ env.PORTABLE_ZIP }}
+            ${{ env.PORTABLE_SHA256 }}
+            ${{ env.INSTALLER_EXE }}
+            ${{ env.INSTALLER_SHA256 }}
+          if-no-files-found: error
 
       - name: Upload build log
         if: always()

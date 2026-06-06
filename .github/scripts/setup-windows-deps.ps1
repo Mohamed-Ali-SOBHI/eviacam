@@ -135,10 +135,11 @@ if (-not $ortRoot) {
 
 $configHeader = Join-Path $repoRoot "config.h"
 $versionHeader = Join-Path $repoRoot "src\version.h"
+$appVersion = "2.1.4.1"
 
 @"
 #pragma once
-#define VERSION "2.1.4"
+#define VERSION "$appVersion"
 #define COPYRIGHT "(C) 2008-19"
 #define PUBLISHER "Cesar Mauri Loba"
 #define ENABLE_UPDATES_CHECK 1
@@ -146,6 +147,11 @@ $versionHeader = Join-Path $repoRoot "src\version.h"
 
 @"
 #pragma once
+#define EVIACAM_VERSION_MAJOR 2
+#define EVIACAM_VERSION_MINOR 1
+#define EVIACAM_VERSION_PATCH 4
+#define EVIACAM_VERSION_BUILD 1
+#define EVIACAM_VERSION_STRING "$appVersion"
 "@ | Set-Content -Path $versionHeader -Encoding ascii
 
 Write-Host "WXWIN=$wxRoot"
@@ -157,3 +163,4 @@ Write-Host "Generated $versionHeader"
 "WXWIN=$wxRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 "CVPATH=$opencvRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 "ORT_ROOT=$ortRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+"EVIACAM_VERSION=$appVersion" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

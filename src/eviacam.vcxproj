@@ -563,6 +563,7 @@ if not exist $(TargetDir)face_mesh_192x192.onnx copy "$(ProjectDir)data\face_mes
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="gui.rc" />
+    <ResourceCompile Include="version.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\creavision\CreaVision_eviacam.vcxproj">

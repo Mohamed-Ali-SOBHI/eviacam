@@ -1,0 +1,14 @@
+ENABLE VIACAM 2.1.4.1 - WINDOWS COMMUNITY RELEASE
+=================================================
+
+Release date: 2026-06-06
+
+Changes since upstream version 2.1.4:
+
+* Display camera friendly names in the camera chooser.
+* Always show the chooser when multiple cameras are available.
+* Improve MediaPipe pointer movement at low speed.
+* Set the default pointer calibration to 16 horizontal, 15 vertical,
+  acceleration 3, smoothing 2 and movement threshold 1.
+* Enable pointer control at startup by default.
+* Build and package a native Windows x64 distribution.
