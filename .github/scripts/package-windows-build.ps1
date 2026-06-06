@@ -45,19 +45,10 @@ function Find-VcRuntimeRoot {
     }
 
     $redistRoot = Join-Path $installationPath "VC\Redist\MSVC"
-    $versionDir = Get-ChildItem -Path $redistRoot -Directory -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-    if (-not $versionDir) {
-        return $null
-    }
-
-    $candidate = Join-Path $versionDir.FullName "x64\Microsoft.VC143.CRT"
-    if (Test-Path $candidate) {
-        return $candidate
-    }
-
-    return $null
+    return Get-ChildItem -Path $redistRoot -Directory -Filter "Microsoft.VC143.CRT" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Parent.Name -eq "x64" } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1 -ExpandProperty FullName
 }
 
 if (-not (Test-Path (Join-Path $buildOutput "eviacam.exe"))) {
