@@ -28,10 +28,103 @@ char CCameraCV::g_deviceNames[MAX_CV_DEVICES][CAMERA_DEVICE_NAME_LENGTH];
 
 #if defined(WIN32)
 #include <windows.h>
-#include "videoInput.h"
+#include <dshow.h>
 
 #define MAX_KEY_LENGTH 255
 #define MAX_VALUE_NAME 16383
+
+static int EnumerateDirectShowCameraNames(
+	char deviceNames[][CCameraCV::CAMERA_DEVICE_NAME_LENGTH],
+	int maxDevices)
+{
+	HRESULT comResult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	const bool uninitializeCom = SUCCEEDED(comResult);
+	if (FAILED(comResult) && comResult != RPC_E_CHANGED_MODE) {
+		return 0;
+	}
+
+	ICreateDevEnum* deviceEnumerator = NULL;
+	IEnumMoniker* monikerEnumerator = NULL;
+	int deviceCount = 0;
+
+	HRESULT result = CoCreateInstance(
+		CLSID_SystemDeviceEnum,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		IID_ICreateDevEnum,
+		reinterpret_cast<void**>(&deviceEnumerator));
+
+	if (SUCCEEDED(result)) {
+		result = deviceEnumerator->CreateClassEnumerator(
+			CLSID_VideoInputDeviceCategory,
+			&monikerEnumerator,
+			0);
+	}
+
+	if (result == S_OK && monikerEnumerator != NULL) {
+		IMoniker* moniker = NULL;
+		while (deviceCount < maxDevices &&
+			monikerEnumerator->Next(1, &moniker, NULL) == S_OK) {
+			IPropertyBag* propertyBag = NULL;
+			result = moniker->BindToStorage(
+				0,
+				0,
+				IID_IPropertyBag,
+				reinterpret_cast<void**>(&propertyBag));
+
+			if (SUCCEEDED(result) && propertyBag != NULL) {
+				VARIANT friendlyName;
+				VariantInit(&friendlyName);
+				result = propertyBag->Read(L"FriendlyName", &friendlyName, 0);
+
+				if (SUCCEEDED(result) && friendlyName.vt == VT_BSTR) {
+					char convertedName[CCameraCV::CAMERA_DEVICE_NAME_LENGTH];
+					const int convertedLength = WideCharToMultiByte(
+						CP_ACP,
+						0,
+						friendlyName.bstrVal,
+						-1,
+						convertedName,
+						CCameraCV::CAMERA_DEVICE_NAME_LENGTH,
+						NULL,
+						NULL);
+
+					if (convertedLength > 0) {
+						_snprintf_s(
+							deviceNames[deviceCount],
+							CCameraCV::CAMERA_DEVICE_NAME_LENGTH,
+							_TRUNCATE,
+							"%s (Id:%d)",
+							convertedName,
+							deviceCount);
+					}
+				}
+
+				VariantClear(&friendlyName);
+				propertyBag->Release();
+			}
+
+			if (deviceNames[deviceCount][0] == '\0') {
+				_snprintf_s(
+					deviceNames[deviceCount],
+					CCameraCV::CAMERA_DEVICE_NAME_LENGTH,
+					_TRUNCATE,
+					"Camera (Id:%d)",
+					deviceCount);
+			}
+
+			moniker->Release();
+			moniker = NULL;
+			++deviceCount;
+		}
+	}
+
+	if (monikerEnumerator != NULL) monikerEnumerator->Release();
+	if (deviceEnumerator != NULL) deviceEnumerator->Release();
+	if (uninitializeCom) CoUninitialize();
+
+	return deviceCount;
+}
 
 // Workround to enable capture at 30fps for some camera models
 // Should be called with administrative rights
@@ -175,50 +268,30 @@ int CCameraCV::GetNumDevices()
 		g_cvInitialized= true; 
 
 #if defined(WIN32)
-		g_numDevices = videoInput::listDevices(true);
-		if (g_numDevices > MAX_CV_DEVICES) {
-			g_numDevices = MAX_CV_DEVICES;
-		}
+		g_numDevices = EnumerateDirectShowCameraNames(
+			g_deviceNames,
+			MAX_CV_DEVICES);
+#endif
 
-		for (int i = 0; i < g_numDevices; ++i) {
-			const char* deviceName = videoInput::getDeviceName(i);
-			if (deviceName != NULL && deviceName[0] != '\0') {
-				_snprintf_s(
-					g_deviceNames[i],
-					CAMERA_DEVICE_NAME_LENGTH,
-					_TRUNCATE,
-					"%s (Id:%d)",
-					deviceName,
-					i);
-			}
-			else {
-				_snprintf_s(
-					g_deviceNames[i],
-					CAMERA_DEVICE_NAME_LENGTH,
-					_TRUNCATE,
-					"Camera (Id:%d)",
-					i);
-			}
-		}
-#else
-		int i;
-		cv::VideoCapture tmpCapture;
+		if (g_numDevices == 0) {
+			int i;
+			cv::VideoCapture tmpCapture;
 
-		// Detect number of connected devices
-		for (i= 0; i< MAX_CV_DEVICES; ++i) {
+			// Detect number of connected devices
+			for (i= 0; i< MAX_CV_DEVICES; ++i) {
 #if defined(WIN32)
-			if (!tmpCapture.open(i, cv::CAP_DSHOW)) break;
+				if (!tmpCapture.open(i, cv::CAP_DSHOW)) break;
 #else
-			if (!tmpCapture.open(i)) break;
+				if (!tmpCapture.open(i)) break;
 #endif
 
-			tmpCapture.release();
+				tmpCapture.release();
 
-			// Generate device name
-			sprintf (g_deviceNames[i], "Camera (Id:%d)", i);
-		}		
-		g_numDevices= i;
-#endif
+				// Generate device name
+				sprintf (g_deviceNames[i], "Camera (Id:%d)", i);
+			}
+			g_numDevices= i;
+		}
 	}
 	return g_numDevices;
 }

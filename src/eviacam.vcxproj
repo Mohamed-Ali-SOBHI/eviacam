@@ -151,7 +151,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>wxmsw32ud_richtext.lib;wxmsw32ud_aui.lib;wxmsw32ud_core.lib;wxbase32ud.lib;wxtiffd.lib;wxjpegd.lib;wxpngd.lib;wxzlibd.lib;wxregexud.lib;wxmsw32ud_adv.lib;wxmsw32ud_html.lib;wxmsw32ud_xrc.lib;wxbase32ud_net.lib;wxbase32ud_xml.lib;opencv_world460d.lib;wxexpatd.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wxmsw32ud_richtext.lib;wxmsw32ud_aui.lib;wxmsw32ud_core.lib;wxbase32ud.lib;wxtiffd.lib;wxjpegd.lib;wxpngd.lib;wxzlibd.lib;wxregexud.lib;wxmsw32ud_adv.lib;wxmsw32ud_html.lib;wxmsw32ud_xrc.lib;wxbase32ud_net.lib;wxbase32ud_xml.lib;opencv_world460d.lib;wxexpatd.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;ole32.lib;oleaut32.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>$(CVPATH)\build\x86\vc12\lib;$(WXWIN)\lib\vc_lib;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -257,7 +257,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>wxmsw32ud_richtext.lib;wxmsw32ud_aui.lib;wxmsw32ud_core.lib;wxbase32ud.lib;wxtiffd.lib;wxjpegd.lib;wxpngd.lib;wxzlibd.lib;wxregexud.lib;wxmsw32ud_adv.lib;wxmsw32ud_html.lib;wxmsw32ud_xrc.lib;wxbase32ud_net.lib;wxbase32ud_xml.lib;opencv_world460d.lib;wxexpatd.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wxmsw32ud_richtext.lib;wxmsw32ud_aui.lib;wxmsw32ud_core.lib;wxbase32ud.lib;wxtiffd.lib;wxjpegd.lib;wxpngd.lib;wxzlibd.lib;wxregexud.lib;wxmsw32ud_adv.lib;wxmsw32ud_html.lib;wxmsw32ud_xrc.lib;wxbase32ud_net.lib;wxbase32ud_xml.lib;opencv_world460d.lib;wxexpatd.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;ole32.lib;oleaut32.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc_x64_lib;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -360,7 +360,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;ole32.lib;oleaut32.lib;wsock32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
       <AdditionalLibraryDirectories>$(CVPATH)\build\x86\vc12\lib;$(WXWIN)\lib\vc_lib;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
@@ -464,7 +464,7 @@ if %ERRORLEVEL% LEQ 1 exit 0
 </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;wsock32.lib;onnxruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wxmsw32u_richtext.lib;wxmsw32u_aui.lib;wxmsw32u_core.lib;wxbase32u.lib;wxtiff.lib;wxjpeg.lib;wxpng.lib;wxzlib.lib;wxregexu.lib;wxmsw32u_adv.lib;wxmsw32u_html.lib;wxmsw32u_xrc.lib;wxbase32u_net.lib;wxbase32u_xml.lib;opencv_world460.lib;wxexpat.lib;comctl32.lib;rpcrt4.lib;winmm.lib;simplelog.lib;wxcamwindow.lib;wxutil.lib;strmiids.lib;uuid.lib;quartz.lib;ole32.lib;oleaut32.lib;wsock32.lib;onnxruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)eviacam.exe</OutputFile>
       <AdditionalLibraryDirectories>$(CVPATH)\build\x64\vc15\lib;$(WXWIN)\lib\vc14x_x64_dll;$(DSHOW_SAMPLES)\baseclasses\$(Configuration);$(SolutionDir)$(Configuration);$(ORT_ROOT)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
