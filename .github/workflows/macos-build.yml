@@ -43,6 +43,7 @@ jobs:
         with:
           path: .deps
           key: macos-15-${{ matrix.arch }}-deps-${{ hashFiles('tools/build-macos-deps.sh') }}
+          restore-keys: macos-15-${{ matrix.arch }}-deps-
       - name: Compile static native dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: bash tools/build-macos-deps.sh
