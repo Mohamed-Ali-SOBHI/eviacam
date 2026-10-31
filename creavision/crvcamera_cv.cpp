@@ -140,6 +140,11 @@ bool CCameraCV::DoOpen ()
     const char* replay = std::getenv("EVIACAM_REPLAY");
     if (replay && *replay) {
         m_nextReplayTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+#ifdef __APPLE__
+        // Offline MJPEG fixtures must not rely on VideoToolbox hardware codecs
+        // (AVFoundation can open the AVI but fail to decode on virtual Macs).
+        if (m_pCvCapture->open(replay, cv::CAP_OPENCV_MJPEG)) return true;
+#endif
         return m_pCvCapture->open(replay);
     }
 #ifdef __APPLE__
