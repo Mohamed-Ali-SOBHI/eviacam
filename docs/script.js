@@ -1,55 +1,41 @@
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-const revealElements = document.querySelectorAll(".reveal");
-if (reducedMotion || !("IntersectionObserver" in window)) {
-  revealElements.forEach((element) => element.classList.add("is-visible"));
-} else {
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.12 }
+// Downloads and instructions remain usable without JavaScript.
+const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+const motionToggle = document.getElementById("motion-toggle");
+let motionPaused = motionPreference.matches;
+function updateMotion() {
+  document.body.classList.toggle("motion-paused", motionPaused);
+  motionToggle.textContent = motionPaused ? "Animer" : "Pause";
+  motionToggle.setAttribute(
+    "aria-label",
+    motionPaused ? "Animer l’illustration" : "Mettre l’illustration en pause",
   );
-  revealElements.forEach((element) => observer.observe(element));
+  motionToggle.setAttribute("aria-pressed", String(motionPaused));
+  motionToggle.hidden = motionPreference.matches;
 }
-
-const cameraFeed = document.querySelector("[data-camera-feed]");
-const demoPointer = document.querySelector("[data-demo-pointer]");
-if (cameraFeed && demoPointer && !reducedMotion) {
-  cameraFeed.addEventListener("pointermove", (event) => {
-    const bounds = cameraFeed.getBoundingClientRect();
-    const x = ((event.clientX - bounds.left) / bounds.width - 0.72) * 34;
-    const y = ((event.clientY - bounds.top) / bounds.height - 0.62) * 34;
-    demoPointer.style.transform = `translate(${x}px, ${y}px)`;
-  });
-
-  cameraFeed.addEventListener("pointerleave", () => {
-    demoPointer.style.transform = "translate(0, 0)";
-  });
-}
-
-const toast = document.querySelector("[data-copy-toast]");
+motionToggle.addEventListener("click", () => {
+  motionPaused = !motionPaused;
+  updateMotion();
+});
+motionPreference.addEventListener("change", () => {
+  motionPaused = motionPreference.matches;
+  updateMotion();
+});
+updateMotion();
+const toast = document.getElementById("copy-toast");
 let toastTimer;
-
 document.querySelectorAll("[data-copy-hash]").forEach((button) => {
+  if (!navigator.clipboard?.writeText) return;
+  button.hidden = false;
   button.addEventListener("click", async () => {
-    const hash = button.dataset.copyHash;
     try {
-      await navigator.clipboard.writeText(hash);
-      button.textContent = "Copié";
-      toast?.classList.add("is-visible");
-      window.clearTimeout(toastTimer);
-      toastTimer = window.setTimeout(() => {
-        toast?.classList.remove("is-visible");
-        button.textContent = "Copier";
-      }, 1800);
+      await navigator.clipboard.writeText(button.dataset.copyHash);
+      toast.textContent = "Empreinte SHA-256 copiée.";
     } catch {
-      button.textContent = "Sélectionnez le hash";
+      toast.textContent =
+        "Copie indisponible : sélectionnez l’empreinte affichée.";
     }
+    toast.classList.add("is-visible");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 3500);
   });
 });

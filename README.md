@@ -1,5 +1,7 @@
 # eViacam avec détection de visage YuNet
 
+[Télécharger eViacam YuNet pour Windows et macOS](https://mohamed-ali-sobhi.github.io/eviacam/)
+
 La branche `master` contient la version Windows compilée et essayée le 31 octobre
 2026, ainsi qu'un premier port natif macOS pour Apple Silicon et Intel (macOS 15
 minimum). Les deux utilisent la détection neuronale locale YuNet et le suivi
@@ -29,7 +31,7 @@ MediaPipe précédente dans `master`. L'historique de cette variante et du proje
 original est conservé, ainsi que la page de téléchargement dans `docs/`.
 Les anciennes releases restent des versions antérieures. Les builds YuNet sont
 disponibles comme artefacts des workflows Windows Build et macOS Build ; les
-versions macOS à télécharger sont publiées en préversion dans
+versions Windows et macOS à télécharger sont publiées en préversion dans
 [Releases](https://github.com/Mohamed-Ali-SOBHI/eviacam/releases).
 
 eViacam est distribué sous [GPL version 3 ou ultérieure](COPYING).
