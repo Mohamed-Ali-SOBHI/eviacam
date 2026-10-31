@@ -43,6 +43,22 @@ réserve pas de bande sur le bureau et son masquage automatique n'est pas implé
 Le démarrage automatique et le lancement d'un clavier visuel ne sont pas fournis
 par ce premier port macOS.
 
+## Premier essai sur un Mac
+
+1. Dans « À propos de ce Mac », vérifier le processeur et la version de macOS,
+   puis choisir l'archive correspondante (Apple Silicon ou Intel, macOS 15 minimum).
+2. Après les autorisations et l'assistant de réglage, vérifier que la vidéo
+   apparaît et que le cadre suit le visage à distance normale, puis plus loin
+   et avec une lumière plus faible.
+3. Activer le contrôle et essayer le déplacement, le clic, le double clic et
+   le glisser-déposer, notamment dans le Finder et le Dock.
+4. Sortir le visage du champ, vérifier que le pointeur s'arrête, puis revenir
+   devant la caméra et vérifier la reprise.
+5. Fermer et relancer l'application pour vérifier la conservation des réglages.
+
+En cas de problème, relever le modèle du Mac, la version de macOS, le type de
+webcam et l'étape concernée. Ces essais matériels complètent les tests sans caméra.
+
 ## Compilation
 
 Avec Xcode Command Line Tools, CMake, Ninja et Python 3.10 :
