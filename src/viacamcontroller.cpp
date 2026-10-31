@@ -44,7 +44,16 @@ namespace {
 class MacCaptureTimer : public wxTimer {
 public:
     std::function<void()> tick;
-    void Notify() override { tick(); }
+    void Notify() override {
+        // AVFoundation can pump a nested Cocoa run loop while waiting for a
+        // frame. Do not re-enter capture or mutate the tracker recursively.
+        if (busy) return;
+        busy = true;
+        tick();
+        busy = false;
+    }
+private:
+    bool busy = false;
 };
 }
 #endif

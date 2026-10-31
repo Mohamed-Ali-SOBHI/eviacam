@@ -10,11 +10,11 @@
 #include <stdexcept>
 
 static void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
-int main() {
+int main(int argc, char** argv) {
     wxInitializer wx;
     if (!wx.IsOk()) return 2;
     cv::setNumThreads(2);
-    eviacam::SetDataDir(wxT("build"));
+    eviacam::SetDataDir(wxString::FromUTF8(argc > 1 ? argv[1] : "build"));
     try {
         CVisionPipeline pipeline;
         pipeline.SetCpuUsage(CVisionPipeline::CPU_HIGH);
