@@ -11,7 +11,7 @@
     frame = 0,
     previous = 0,
     elapsed = 0;
-  let paused = false,
+  let paused = true,
     inView = true,
     pointerX = 0,
     pointerY = 0;
@@ -49,8 +49,24 @@
   }
 
   function draw(time) {
-    const yaw = Math.sin(time * 0.65) * 0.38 + pointerX * 0.18;
-    const pitch = Math.sin(time * 0.43) * 0.1 + pointerY * 0.07;
+    const phase = time % 10;
+    const tracking = phase < 5;
+    const blend = tracking ? Math.min(1, phase, 5 - phase) : 0;
+    const yaw = (Math.sin(time * 0.65) * 0.38 + pointerX * 0.18) * blend;
+    const pitch = (Math.sin(time * 0.43) * 0.1 + pointerY * 0.07) * blend;
+    const progress = tracking ? 0 : Math.min(1, (phase - 5) / 3);
+    document.querySelector(".dwell-ring").style.strokeDashoffset =
+      214 * (1 - progress);
+    document.querySelector(".click-check").style.opacity =
+      progress === 1 ? 1 : 0;
+    cursor.style.opacity = progress === 1 ? 0.2 : 1;
+    const status = document.querySelector("#demo-status");
+    const message = tracking
+      ? "La tête bouge. Le pointeur suit."
+      : progress < 1
+        ? "Le pointeur reste immobile sur la cible…"
+        : "Le clic est déclenché.";
+    if (status.textContent !== message) status.textContent = message;
     cursor.style.transform = `translate(${yaw * 105}px, ${pitch * 150}px) rotate(${-yaw * 12}deg)`;
     const scroll = reduced.matches ? 0 : Math.min(1, window.scrollY / 650);
     stage.style.setProperty(
@@ -100,8 +116,8 @@
         else context.moveTo(p[0], p[1]);
       });
       context.closePath();
-      context.fillStyle = `rgba(95,168,244,${Math.max(0.025, 0.05 + depth * 0.011)})`;
-      context.strokeStyle = `rgba(125,192,255,${Math.max(0.08, 0.18 + depth * 0.025)})`;
+      context.fillStyle = `rgba(65,95,81,${Math.max(0.025, 0.05 + depth * 0.011)})`;
+      context.strokeStyle = `rgba(57,86,71,${Math.max(0.08, 0.18 + depth * 0.025)})`;
       context.fill();
       context.stroke();
     });
@@ -109,15 +125,15 @@
       if (i % 3) return;
       context.beginPath();
       context.arc(x, y, 0.8, 0, Math.PI * 2);
-      context.fillStyle = `rgba(186,222,255,${Math.max(0.15, 0.45 + z * 0.05)})`;
+      context.fillStyle = `rgba(44,71,57,${Math.max(0.15, 0.45 + z * 0.05)})`;
       context.fill();
     });
     [1, 33, 263, 61, 291].forEach((index) => {
       const [x, y] = projected[index];
       context.beginPath();
       context.arc(x, y, 2, 0, Math.PI * 2);
-      context.fillStyle = "#d9eeff";
-      context.shadowColor = "#55adff";
+      context.fillStyle = "#325544";
+      context.shadowColor = "#53755f";
       context.shadowBlur = 8;
       context.fill();
       context.shadowBlur = 0;
@@ -152,7 +168,15 @@
       !reduced.matches && "IntersectionObserver" in window,
     );
     root.classList.toggle("motion-paused", paused || reduced.matches);
-    toggle.hidden = reduced.matches;
+    document.body.classList.toggle("reduced-motion", reduced.matches);
+    toggle.hidden = false;
+    toggle.disabled = reduced.matches;
+    toggle.setAttribute("aria-pressed", String(!paused && !reduced.matches));
+    toggle.innerHTML = reduced.matches
+      ? "Animations réduites selon vos préférences"
+      : paused
+        ? 'Lancer la démonstration <span aria-hidden="true">▶</span>'
+        : 'Mettre en pause <span aria-hidden="true">Ⅱ</span>';
     if (reduced.matches) {
       pointerX = pointerY = 0;
       draw(0);
@@ -161,10 +185,6 @@
   }
   toggle.addEventListener("click", () => {
     paused = !paused;
-    toggle.setAttribute("aria-pressed", String(paused));
-    toggle.innerHTML = paused
-      ? 'Reprendre les animations <span aria-hidden="true">▷</span>'
-      : 'Mettre en pause <span aria-hidden="true">Ⅱ</span>';
     preferences();
   });
   stage.addEventListener("pointermove", (event) => {
@@ -179,6 +199,17 @@
   document.addEventListener("visibilitychange", schedule);
   reduced.addEventListener("change", preferences);
   window.addEventListener("resize", resize, { passive: true });
+  if (
+    /Windows/i.test(navigator.userAgent) &&
+    !/Mobile|Android/i.test(navigator.userAgent)
+  ) {
+    const windows = document.querySelector(".download-link");
+    document.querySelector(".hero-download").href = windows.href;
+    document.querySelector("#hero-download-label").textContent =
+      "Télécharger pour Windows";
+    document.querySelector("#hero-download-note").innerHTML =
+      'Windows 10 / 11 · 64 bits · Gratuit <a href="#telecharger">Autres versions ↗</a>';
+  }
   resize();
   preferences();
   fetch("assets/face-mesh.json")

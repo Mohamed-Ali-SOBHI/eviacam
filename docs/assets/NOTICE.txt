@@ -3,3 +3,7 @@ Copyright The MediaPipe Authors. Licensed under Apache License 2.0; see MEDIAPIP
 Source: https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/modules/face_geometry/data/canonical_face_model.obj
 Only positions and triangle indices are retained, with rounded coordinates.
 This illustration does not run face detection. The downloadable application uses YuNet.
+
+Manrope typeface: copyright the Manrope Project Authors, SIL Open Font License; see MANROPE-LICENSE.txt. Self-hosted files sourced from Google Fonts.
+
+Cursor sculpture: original illustrative asset generated with the built-in OpenAI image generation tool for this website. Brief: a single satin brushed aluminium mouse-pointer sculpture with polished bevels, soft studio lighting and a pale seamless background, no lettering or branding. Exported to WebP for delivery.

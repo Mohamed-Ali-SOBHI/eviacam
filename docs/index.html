@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="theme-color" content="#f7f7f4" />
     <meta
       name="description"
       content="Une autre façon de contrôler votre ordinateur avec les mouvements de la tête. eViacam amélioré, gratuit et libre, pour Windows et Mac."
@@ -20,199 +20,229 @@
     />
     <link rel="canonical" href="https://mohamed-ali-sobhi.github.io/eviacam/" />
     <link rel="icon" href="assets/eviacam-logo.png" />
-    <link rel="stylesheet" href="styles.css?v=access-1" />
-    <title>eViacam — Plus de liberté à l’écran</title>
+    <link rel="stylesheet" href="styles.css?v=atelier-1" />
+    <title>eViacam — Votre tête. Le reste suit.</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Aller au contenu</a>
     <div class="page">
-      <header>
+      <header class="site-header">
         <a class="wordmark" href="#top" aria-label="eViacam, accueil"
+          ><svg viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M8 27C8 16 17 8 28 8M23 3L29 8L23 14" />
+            <path
+              d="M18 18L33 29L26 30L29 37L24 39L21 32L16 37Z"
+              class="mark-fill"
+            /></svg
           >eViacam</a
         >
         <nav aria-label="Navigation principale">
-          <a href="#experience">Découvrir</a
-          ><a href="#installation">Installation</a>
-          <a class="nav-download" href="#telecharger">Télécharger</a>
+          <a href="#experience">Comment ça marche</a
+          ><a href="#installation">Aide à l’installation</a
+          ><a class="nav-download" href="#telecharger"
+            >Télécharger <span aria-hidden="true">↗</span></a
+          >
         </nav>
       </header>
       <main id="main">
-        <section class="intro" id="top" aria-labelledby="intro-title">
+        <section class="hero" id="top" aria-labelledby="intro-title">
+          <img
+            class="hero-portrait"
+            src="assets/cursor-sculpture.webp"
+            width="1024"
+            height="1024"
+            alt=""
+            fetchpriority="high"
+          />
+          <div class="hero-shade"></div>
           <div class="hero-copy">
-            <p class="eyebrow">L’accessibilité en mouvement.</p>
-            <h1 id="intro-title">eViacam.</h1>
-            <p class="intro-copy">Plus de liberté à l’écran.</p>
-            <p class="intro-description">
-              Contrôlez votre ordinateur avec les mouvements de la tête.<br />Une
-              simple webcam suffit. Sur Windows, et maintenant sur Mac.
+            <p class="eyebrow"><span></span> L’ordinateur, autrement</p>
+            <h1 id="intro-title">Votre tête.<br /><em>Le reste suit.</em></h1>
+            <p class="hero-description">
+              Votre webcam repère votre visage. Vous bougez la tête. Le pointeur
+              suit.
             </p>
-            <div class="hero-actions">
-              <a class="button" href="#telecharger">Télécharger gratuitement</a
-              ><a class="text-link" href="#experience"
-                >Découvrir le mouvement <span aria-hidden="true">›</span></a
-              >
-            </div>
-          </div>
-          <div
-            class="stage"
-            role="img"
-            aria-label="Illustration en 3D : un visage tourne et le pointeur suit son mouvement sur un écran."
-          >
-            <div class="device-shadow"></div>
-            <div class="device">
-              <div class="display">
-                <div class="webcam"></div>
-                <div class="screen">
-                  <div class="screen-top">
-                    <span>eViacam</span><span>Le mouvement, simplement.</span>
-                  </div>
-                  <svg
-                    class="face-fallback"
-                    viewBox="0 0 200 240"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M100 20C35 20 27 70 40 132C48 173 72 211 100 218C128 211 152 173 160 132C173 70 165 20 100 20Z M58 92Q75 80 88 94 M112 94Q125 80 142 92 M100 96L91 139L109 139 M75 164Q100 178 125 164"
-                    />
-                  </svg>
-                  <canvas id="face-canvas" aria-hidden="true"></canvas>
-                  <div class="connection" aria-hidden="true"></div>
-                  <div class="cursor-zone" aria-hidden="true">
-                    <div class="cursor-target"></div>
-                    <svg class="demo-cursor" viewBox="0 0 72 90">
-                      <defs>
-                        <linearGradient id="cursor-light" x2=".7" y2="1">
-                          <stop stop-color="#fff" />
-                          <stop offset="1" stop-color="#b9d2f1" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M10 5L61 49L39 52L50 77L37 83L26 58L10 74Z"
-                        fill="url(#cursor-light)"
-                        stroke="#fff"
-                        stroke-width="2"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <div class="screen-bottom">
-                    <span>Mouvement de la tête</span
-                    ><span>Déplacement du pointeur</span>
-                  </div>
-                </div>
-              </div>
-              <div class="device-neck"></div>
-              <div class="device-foot"></div>
-            </div>
-          </div>
-          <div class="scene-caption">
-            <p>Illustration du suivi · aucun accès à votre caméra</p>
-            <button
-              id="motion-toggle"
-              type="button"
-              aria-pressed="false"
-              hidden
+            <a class="button hero-download" href="#telecharger"
+              ><span id="hero-download-label">Télécharger eViacam</span
+              ><span aria-hidden="true">↓</span></a
             >
-              Mettre en pause <span aria-hidden="true">Ⅱ</span>
-            </button>
+            <p class="hero-download-note" id="hero-download-note">
+              Gratuit · Windows &amp; macOS
+            </p>
+            <a class="hero-secondary" href="#experience"
+              >Découvrir le fonctionnement <span aria-hidden="true">↘</span></a
+            >
+          </div>
+          <div class="hero-bottom">
+            <p>Un logiciel libre.<br /><strong>Une liberté de plus.</strong></p>
+            <a href="#telecharger"
+              >Windows. Et maintenant, Mac. <span aria-hidden="true">↗</span></a
+            >
           </div>
         </section>
+
+        <section class="introduction">
+          <p class="section-kicker">La même idée. De nouvelles possibilités.</p>
+          <h2>Moins d’obstacles.<br /><span>Plus de place pour vous.</span></h2>
+          <div class="intro-body">
+            <p>
+              Quand utiliser une souris est difficile, accéder à son ordinateur
+              ne devrait pas l’être.
+            </p>
+            <p>
+              Nous faisons évoluer eViacam avec un suivi du visage amélioré,
+              pour mieux gérer les variations de lumière et de distance. Et une
+              version Mac, pour ouvrir cette possibilité à davantage de
+              personnes.
+            </p>
+          </div>
+          <div class="principles">
+            <p>
+              <strong>Une webcam suffit.</strong
+              ><span>Aucun équipement à porter.</span>
+            </p>
+            <p>
+              <strong>Gratuit. Et libre.</strong
+              ><span>Sans compte ni abonnement.</span>
+            </p>
+            <p>
+              <strong>Vos images restent chez vous.</strong
+              ><span>Le traitement se fait sur votre ordinateur.</span>
+            </p>
+          </div>
+        </section>
+
         <section
           class="experience"
           id="experience"
           aria-labelledby="experience-title"
         >
-          <div class="experience-heading reveal">
-            <p class="eyebrow">Une autre façon de prendre la main.</p>
+          <div class="experience-copy">
+            <p class="section-kicker">Voir le principe</p>
             <h2 id="experience-title">
-              L’ordinateur s’adapte<br /><span>à vos mouvements.</span>
+              Du mouvement<br /><span>au clic.</span>
             </h2>
-            <p class="experience-intro">
-              Quand utiliser une souris est difficile, eViacam propose une autre
-              manière de naviguer, de travailler et de communiquer.
+            <p>
+              Votre tête guide le pointeur. Réglez la vitesse pour trouver un
+              mouvement qui vous convient.
             </p>
+            <p>
+              Vous pouvez aussi activer le clic automatique : immobilisez le
+              pointeur sur une cible pour cliquer.
+            </p>
+            <button
+              class="demo-button"
+              id="motion-toggle"
+              type="button"
+              aria-pressed="false"
+              hidden
+            >
+              Lancer la démonstration <span aria-hidden="true">▶</span>
+            </button>
           </div>
-          <div class="feature-lines">
-            <article class="reveal">
-              <span class="feature-number">01</span>
-              <h3>Votre tête bouge.<br />Le pointeur suit.</h3>
-              <p>
-                Les mouvements de la tête dirigent le pointeur. Ajustez la
-                vitesse et les clics à votre façon d’utiliser l’ordinateur.
-              </p>
-            </article>
-            <article class="reveal">
-              <span class="feature-number">02</span>
-              <h3>eViacam.<br />Un suivi amélioré.</h3>
-              <p>
-                Une détection du visage revue pour mieux vous suivre lorsque la
-                lumière ou la distance à la caméra varie.
-              </p>
-            </article>
-            <article class="reveal">
-              <span class="feature-number">03</span>
-              <h3>Maintenant sur Mac.<br />De nouvelles portes.</h3>
-              <p>
-                Le projet s’ouvre à macOS, sur les Mac Apple Silicon et Intel.
-                Une nouvelle possibilité pour les personnes qui utilisent cet
-                environnement.
-              </p>
-            </article>
+          <div class="demo-wrap">
+            <div
+              class="stage"
+              role="img"
+              aria-label="Illustration : un visage en trois dimensions guide un pointeur. Le pointeur s’immobilise ensuite sur une cible pour illustrer le clic automatique."
+            >
+              <svg
+                class="face-fallback"
+                viewBox="0 0 200 240"
+                aria-hidden="true"
+              >
+                <path
+                  d="M100 20C35 20 27 70 40 132C48 173 72 211 100 218C128 211 152 173 160 132C173 70 165 20 100 20Z M58 92Q75 80 88 94 M112 94Q125 80 142 92 M100 96L91 139L109 139 M75 164Q100 178 125 164"
+                />
+              </svg>
+              <canvas id="face-canvas" aria-hidden="true"></canvas>
+              <div class="demo-bridge" aria-hidden="true"></div>
+              <div class="cursor-zone" aria-hidden="true">
+                <div class="cursor-target">
+                  <svg viewBox="0 0 80 80">
+                    <circle class="dwell-ring" cx="40" cy="40" r="34" />
+                    <path class="click-check" d="M26 40L36 50L55 30" />
+                  </svg>
+                </div>
+                <svg class="demo-cursor" viewBox="0 0 72 90">
+                  <defs>
+                    <linearGradient id="cursor-light" x2="1" y2="1">
+                      <stop stop-color="#fff" />
+                      <stop offset=".5" stop-color="#e6ddff" />
+                      <stop offset="1" stop-color="#9886bd" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M10 5L61 49L39 52L50 77L37 83L26 58L10 74Z"
+                    fill="url(#cursor-light)"
+                    stroke="#fff"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <span class="demo-label face-label">Votre mouvement</span
+              ><span class="demo-label cursor-label">Votre pointeur</span>
+            </div>
+            <div class="demo-caption">
+              <span id="demo-status"
+                >Un mouvement de tête, un déplacement du pointeur.</span
+              ><span>Illustration · sans accès caméra</span>
+            </div>
           </div>
-          <p class="experience-footnote">
-            Gratuit et libre. Sans création de compte. Vos images sont traitées
-            sur votre ordinateur.
-          </p>
         </section>
 
         <section
-          class="section-grid downloads reveal"
+          class="section-grid downloads"
           id="telecharger"
           aria-labelledby="download-title"
         >
           <div class="section-label">
-            <h2 id="download-title">À vous de<br />prendre la main.</h2>
-            <p>Windows &amp; macOS</p>
+            <p class="section-kicker">À vous de jouer</p>
+            <h2 id="download-title">On essaie ?</h2>
+            <p>Choisissez votre version. Nous vous guidons pour la suite.</p>
           </div>
           <div>
-            <div class="download-row">
-              <div class="platform">
-                <h3>Windows</h3>
-                <p>Windows 10 / 11 · 64 bits</p>
+            <div class="platform-choices">
+              <div class="download-row">
+                <div class="platform">
+                  <h3>Windows</h3>
+                  <p>Windows 10 / 11 · 64 bits</p>
+                </div>
+                <span class="file-meta">ZIP · 35,7 Mo</span>
+                <a
+                  class="download-link"
+                  href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-windows.1/eViacam-YuNet-windows-x64.zip"
+                  aria-label="Télécharger pour Windows"
+                  >Télécharger <span aria-hidden="true">↓</span></a
+                >
               </div>
-              <span class="file-meta">ZIP · 35,7 Mo</span>
-              <a
-                class="download-link"
-                href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-windows.1/eViacam-YuNet-windows-x64.zip"
-                aria-label="Télécharger pour Windows"
-                >Télécharger <span aria-hidden="true">↓</span></a
-              >
-            </div>
-            <div class="download-row">
-              <div class="platform">
-                <h3>Mac <span>Apple Silicon</span></h3>
-                <p>Puce M1, M2, M3… · macOS 15+</p>
+              <div class="download-row">
+                <div class="platform">
+                  <h3>Mac <span>Apple Silicon</span></h3>
+                  <p>Puce M1, M2, M3… · macOS 15+</p>
+                </div>
+                <span class="file-meta">ZIP · 9,4 Mo</span>
+                <a
+                  class="download-link"
+                  href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-macos.1/eViacam-YuNet-macos-arm64.zip"
+                  aria-label="Télécharger pour Mac Apple Silicon"
+                  >Télécharger <span aria-hidden="true">↓</span></a
+                >
               </div>
-              <span class="file-meta">ZIP · 9,4 Mo</span>
-              <a
-                class="download-link"
-                href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-macos.1/eViacam-YuNet-macos-arm64.zip"
-                aria-label="Télécharger pour Mac Apple Silicon"
-                >Télécharger <span aria-hidden="true">↓</span></a
-              >
-            </div>
-            <div class="download-row">
-              <div class="platform">
-                <h3>Mac <span>Intel</span></h3>
-                <p>Processeur Intel · macOS 15+</p>
+              <div class="download-row">
+                <div class="platform">
+                  <h3>Mac <span>Intel</span></h3>
+                  <p>Processeur Intel · macOS 15+</p>
+                </div>
+                <span class="file-meta">ZIP · 9,9 Mo</span>
+                <a
+                  class="download-link"
+                  href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-macos.1/eViacam-YuNet-macos-x86_64.zip"
+                  aria-label="Télécharger pour Mac Intel"
+                  >Télécharger <span aria-hidden="true">↓</span></a
+                >
               </div>
-              <span class="file-meta">ZIP · 9,9 Mo</span>
-              <a
-                class="download-link"
-                href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4-yunet-macos.1/eViacam-YuNet-macos-x86_64.zip"
-                aria-label="Télécharger pour Mac Intel"
-                >Télécharger <span aria-hidden="true">↓</span></a
-              >
             </div>
             <p class="download-note">
               Sur Mac, retrouvez votre puce et votre version de macOS dans<br
@@ -234,15 +264,13 @@
         </section>
 
         <section
-          class="section-grid installation reveal"
+          class="section-grid installation"
           id="installation"
           aria-labelledby="installation-title"
         >
           <div class="section-label">
-            <h2 id="installation-title">
-              Installation<span class="accent">.</span>
-            </h2>
-            <p>Installation & premiers réglages</p>
+            <h2 id="installation-title">Un peu d’aide<br />pour commencer.</h2>
+            <p>Les premiers pas, simplement.</p>
           </div>
           <div class="guides">
             <p class="guide-intro">
@@ -329,10 +357,7 @@
           </div>
         </section>
 
-        <section
-          class="section-grid project reveal"
-          aria-labelledby="project-title"
-        >
+        <section class="section-grid project" aria-labelledby="project-title">
           <div class="section-label"><h2 id="project-title">Le projet</h2></div>
           <div>
             <p class="project-copy">
@@ -381,15 +406,17 @@
         </section>
       </main>
       <footer>
-        <p>eViacam YuNet</p>
+        <p class="footer-brand">
+          eViacam<span>L’accessibilité en mouvement.</span>
+        </p>
         <a href="https://github.com/cmauri/eviacam">Projet original</a
         ><a
           href="https://github.com/Mohamed-Ali-SOBHI/eviacam/blob/master/COPYING"
           >GPL v3 ou ultérieure</a
         >
-        <a href="assets/NOTICE.txt">Crédits du visuel 3D</a>
+        <a href="assets/NOTICE.txt">Crédits visuels</a>
       </footer>
     </div>
-    <script src="script.js?v=access-1" defer></script>
+    <script src="script.js?v=atelier-1" defer></script>
   </body>
 </html>
