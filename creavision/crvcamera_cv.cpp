@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #if defined(EVIACAM_MODERN_CAPTURE)
 #ifdef WIN32
 #include <dshow.h>

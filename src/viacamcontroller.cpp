@@ -40,20 +40,53 @@
 #include <wx/timer.h>
 #include <functional>
 #include <cstdlib>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <chrono>
 namespace {
 class MacCaptureTimer : public wxTimer {
 public:
-    std::function<void()> tick;
+    std::function<void(cv::Mat&)> tick;
+    void StartCapture(CCamera* camera) {
+        worker = std::thread([this,camera]() {
+            try {
+                while (running) {
+                    cv::Mat frame;
+                    if (camera->QueryFrame(frame) && !frame.empty()) {
+                        std::lock_guard<std::mutex> lock(mutex);
+                        frame.copyTo(latest);
+                    } else std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                }
+            } catch (const std::exception& error) {
+                SLOG_ERR("macOS camera stopped: %s", error.what());
+            }
+        });
+    }
+    ~MacCaptureTimer() override {
+        Stop();
+        running = false;
+        if (worker.joinable()) worker.join();
+    }
     void Notify() override {
-        // AVFoundation can pump a nested Cocoa run loop while waiting for a
-        // frame. Do not re-enter capture or mutate the tracker recursively.
+        // Cocoa operations stay on the main thread, camera waits do not.
         if (busy) return;
+        cv::Mat frame;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::swap(frame, latest);
+        }
+        if (frame.empty()) return;
         busy = true;
-        tick();
+        tick(frame);
         busy = false;
     }
 private:
     bool busy = false;
+    std::atomic<bool> running{true};
+    std::thread worker;
+    std::mutex mutex;
+    cv::Mat latest;
 };
 }
 #endif
@@ -350,9 +383,7 @@ bool CViacamController::Initialize ()
             retval = false;
         } else {
             auto* timer = new MacCaptureTimer();
-            timer->tick = [this, frames=0, faceSeen=false]() mutable {
-                cv::Mat frame;
-                if (!m_pCamera->QueryFrame(frame) || frame.empty()) return;
+            timer->tick = [this, frames=0, faceSeen=false](cv::Mat& frame) mutable {
                 ProcessImage(frame);
                 m_pMainWindow->GetCamWindow()->DrawCam(frame);
                 faceSeen = faceSeen || m_visionPipeline.IsFaceDetected();
@@ -365,6 +396,7 @@ bool CViacamController::Initialize ()
                 }
             };
             m_macCaptureTimer = timer;
+            timer->StartCapture(m_pCamera);
             timer->Start(33);
         }
     #else

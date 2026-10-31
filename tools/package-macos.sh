@@ -8,7 +8,22 @@ cp COPYING "$resources/licenses/eViacam-GPL.txt"
 cp models/LICENSE-YuNet "$resources/licenses/"
 cp .deps/opencv-4.10.0/LICENSE "$resources/licenses/OpenCV-Apache.txt"
 cp .deps/wxWidgets-3.2.11/docs/licence.txt "$resources/licenses/wxWidgets.txt"
-cp -R .deps/macos/share/licenses "$resources/licenses/dependencies" 2>/dev/null || true
+if [[ -d .deps/macos/share/licenses ]]; then
+  cp -R .deps/macos/share/licenses "$resources/licenses/dependencies"
+fi
+python - "$resources/licenses" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+destination = Path(sys.argv[1])
+for name, source in [('wxWidgets-third-party', Path('.deps/wxWidgets-3.2.11/src')),
+                     ('OpenCV-third-party', Path('.deps/opencv-4.10.0/3rdparty'))]:
+    for path in source.rglob('*'):
+        if path.is_file() and path.name.lower().startswith(('license', 'licence', 'copying', 'copyright', 'readme')):
+            target = destination / name / path.relative_to(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+PY
 cp README-MACOS.md "$resources/"
 # Ad-hoc signature satisfies local code integrity on Apple Silicon; it is not
 # an Apple Developer ID signature or notarization. No security settings change.

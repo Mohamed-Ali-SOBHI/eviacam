@@ -45,6 +45,7 @@ inline float roundf(float x) { return (x-floorf(x))>0.5 ? ceilf(x) : floorf(x); 
 
 #elif defined(__APPLE__)
 #include <ApplicationServices/ApplicationServices.h>
+#include "../src/macos/mouseevents.h"
 #include <unistd.h>
 #include <chrono>
 #else	// WIN32
@@ -442,34 +443,10 @@ void CMouseControl::SendMouseCommand (long x, long y, int flags)
     if (!AXIsProcessTrusted()) return;
     int currentX, currentY;
     GetPointerLocation(currentX, currentY);
-    CGPoint point = CGPointMake(currentX, currentY);
-    CGEventType type = kCGEventMouseMoved;
-    CGMouseButton button = kCGMouseButtonLeft;
-    static bool leftDown = false, rightDown = false, middleDown = false;
-    static double lastLeftClick = 0;
-    static CGPoint lastClickPoint = CGPointZero;
-    static int clickCount = 1;
-    if (flags == MOUSE_MOVE_ABS) point = CGPointMake(x, y);
-    else if (flags == MOUSE_MOVE_REL) point = CGPointMake(currentX + x, currentY + y);
-    else if (flags == MOUSE_LEFTDOWN) {
-        type = kCGEventLeftMouseDown; leftDown = true;
-        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        clickCount = (now-lastLeftClick < 0.5 && std::abs(point.x-lastClickPoint.x)<4 && std::abs(point.y-lastClickPoint.y)<4) ? clickCount+1 : 1;
-        lastLeftClick = now; lastClickPoint = point;
-    } else if (flags == MOUSE_LEFTUP) { type = kCGEventLeftMouseUp; leftDown = false; }
-    else if (flags == MOUSE_RIGHTDOWN) { type = kCGEventRightMouseDown; button = kCGMouseButtonRight; rightDown = true; }
-    else if (flags == MOUSE_RIGHTUP) { type = kCGEventRightMouseUp; button = kCGMouseButtonRight; rightDown = false; }
-    else if (flags == MOUSE_MIDDLEDOWN) { type = kCGEventOtherMouseDown; button = kCGMouseButtonCenter; middleDown = true; }
-    else if (flags == MOUSE_MIDDLEUP) { type = kCGEventOtherMouseUp; button = kCGMouseButtonCenter; middleDown = false; }
-    if (type == kCGEventMouseMoved) {
-        if (leftDown) type = kCGEventLeftMouseDragged;
-        else if (rightDown) { type = kCGEventRightMouseDragged; button = kCGMouseButtonRight; }
-        else if (middleDown) { type = kCGEventOtherMouseDragged; button = kCGMouseButtonCenter; }
-    }
-    CGEventRef event = CGEventCreateMouseEvent(nullptr, type, point, button);
+    static eviacam::MacMouseEvents events;
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    CGEventRef event = events.Create(x, y, flags, CGPointMake(currentX,currentY), seconds);
     if (event) {
-        if (type == kCGEventLeftMouseDown || type == kCGEventLeftMouseUp)
-            CGEventSetIntegerValueField(event, kCGMouseEventClickState, clickCount);
         CGEventPost(kCGHIDEventTap, event);
         CFRelease(event);
     }

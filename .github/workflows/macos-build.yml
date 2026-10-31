@@ -46,6 +46,12 @@ jobs:
       - name: Compile static native dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: bash tools/build-macos-deps.sh
+      - name: Save compiled dependencies before application tests
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .deps
+          key: macos-15-${{ matrix.arch }}-deps-${{ hashFiles('tools/build-macos-deps.sh') }}
       - name: Prepare camera-free test fixtures
         run: |
           python -m pip install -r tools/requirements-benchmark.txt

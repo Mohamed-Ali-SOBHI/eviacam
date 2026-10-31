@@ -30,7 +30,12 @@ std::vector<std::string> MacCameraNames() {
         std::vector<std::string> names;
         // Same order/API as OpenCV 4.10's AVFoundation backend; enumeration
         // never creates a capture session or opens the camera.
-        for (AVCaptureDevice* device in [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo])
+        NSArray* devices = [[AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo]
+            arrayByAddingObjectsFromArray:[AVCaptureDevice devicesWithMediaType:AVMediaTypeMuxed]];
+        devices = [devices sortedArrayUsingComparator:^NSComparisonResult(AVCaptureDevice* a, AVCaptureDevice* b) {
+            return [a.uniqueID compare:b.uniqueID];
+        }];
+        for (AVCaptureDevice* device in devices)
             names.emplace_back([[device localizedName] UTF8String]);
         return names;
     }

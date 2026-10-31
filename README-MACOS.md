@@ -29,7 +29,8 @@ La version macOS ne demande pas les droits administrateur.
 
 ## Portée des tests
 
-Le workflow compile l'application, exécute les tests du détecteur et du pipeline,
+Le workflow compile l'application, exécute les tests du détecteur, du pipeline
+et des événements Quartz (déplacement, glisser, relâchement, double clic),
 puis lance le véritable `.app` Cocoa pendant 90 images d'une vidéo de test.
 Ce test vérifie le chargement des ressources, YuNet, l'interface et la fermeture,
 sans ouvrir de caméra ni envoyer de mouvements ou de clics. Il vérifie aussi que

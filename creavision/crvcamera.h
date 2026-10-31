@@ -18,6 +18,9 @@
 #define CRVCAMERA_H_
 
 #include <stdexcept>
+#ifdef __APPLE__
+#include <atomic>
+#endif
 
 // Forward declarations
 namespace cv {
@@ -92,8 +95,14 @@ private:
 
 	void PostQueryFrame(cv::Mat &frame);
 
+#ifdef __APPLE__
+    std::atomic<int> m_RealWidth, m_RealHeight;
+    std::atomic<float> m_RealFrameRate;
+    float m_LastRealFrameRate;
+#else
 	int m_RealWidth, m_RealHeight;
 	float m_RealFrameRate, m_LastRealFrameRate;
+#endif
 	long long m_lastTimeStamp;
 	bool m_horizontalFlip;
 };
