@@ -17,13 +17,16 @@
 #include "crvcamera_cv.h"
 #include <opencv2/core/mat.hpp>
 #include <opencv2/videoio.hpp>
-#include <sys/timeb.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <cassert>
 #include <cstdlib>
 #if defined(EVIACAM_MODERN_CAPTURE)
+#ifdef WIN32
 #include <dshow.h>
+#elif defined(__APPLE__)
+#include "../src/macos/platform.h"
+#endif
 #include <thread>
 #include <chrono>
 #endif
@@ -135,10 +138,14 @@ bool CCameraCV::DoOpen ()
 #if defined(EVIACAM_MODERN_CAPTURE)
     const char* replay = std::getenv("EVIACAM_REPLAY");
     if (replay && *replay) {
-        m_nextReplayTick = GetTickCount64();
+        m_nextReplayTick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         return m_pCvCapture->open(replay);
     }
+#ifdef __APPLE__
+    m_pCvCapture->open(m_Id, cv::CAP_AVFOUNDATION);
+#else
     m_pCvCapture->open(m_Id, cv::CAP_DSHOW);
+#endif
 #else
 	m_pCvCapture->open(m_Id);
 #endif
@@ -169,7 +176,7 @@ bool CCameraCV::DoQueryFrame(cv::Mat& frame)
 #if defined(EVIACAM_MODERN_CAPTURE)
     const char* replay = std::getenv("EVIACAM_REPLAY");
     if (replay && *replay) {
-        const auto now = GetTickCount64();
+        const auto now = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         if (m_nextReplayTick > now)
             std::this_thread::sleep_for(std::chrono::milliseconds(m_nextReplayTick - now));
         m_nextReplayTick = (m_nextReplayTick > now ? m_nextReplayTick : now) + 33;
@@ -204,6 +211,13 @@ int CCameraCV::GetNumDevices()
             strcpy(g_deviceNames[0], "Offline video (no camera)");
             return g_numDevices = 1;
         }
+#ifdef __APPLE__
+        for (const auto& name : eviacam::MacCameraNames()) {
+            if (g_numDevices == MAX_CV_DEVICES) break;
+            snprintf(g_deviceNames[g_numDevices], 50, " (Id:%d) %.38s", g_numDevices, name.c_str());
+            ++g_numDevices;
+        }
+#else
         // Enumerate device names without opening a camera or changing its state.
         const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         ICreateDevEnum* devices = nullptr;
@@ -238,6 +252,7 @@ int CCameraCV::GetNumDevices()
             devices->Release();
         }
         if (SUCCEEDED(init)) CoUninitialize();
+#endif
 #else
 
 		int i;
@@ -260,8 +275,12 @@ int CCameraCV::GetNumDevices()
 
 #if defined(EVIACAM_MODERN_CAPTURE)
 bool CCameraCV::HasSettingsDialog() {
+#ifdef __APPLE__
+    return false; // AVFoundation has no driver settings dialog.
+#else
     const char* replay = std::getenv("EVIACAM_REPLAY");
     return !(replay && *replay);
+#endif
 }
 void CCameraCV::ShowSettingsDialog() {
     if (HasSettingsDialog() && m_pCvCapture->isOpened())

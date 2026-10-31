@@ -37,6 +37,7 @@ class CPointerAction;
 class WConfiguration;
 class CMotionCalibration;
 class wxWindow;
+class wxTimer;
 class CConfigManager;
 class CCamera;
 class CAutostart;
@@ -167,6 +168,9 @@ private:
 	WViacam* m_pMainWindow;
 	CCamera* m_pCamera;
 	CCaptureThread* m_pCaptureThread;	
+#ifdef __APPLE__
+    wxTimer* m_macCaptureTimer = nullptr;
+#endif
 	CPointerAction* m_pointerAction;
 	CVisionPipeline m_visionPipeline;
 	eviacam::HotkeyManager* m_hotKeyManager;

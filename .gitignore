@@ -70,6 +70,8 @@ src/gui-autosave.pjd
 
 # Portable build and generated test data
 build/
+build-macos/
+.venv/
 dist/
 tests/data/
 tests/generated/

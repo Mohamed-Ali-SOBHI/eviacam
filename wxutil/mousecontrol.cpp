@@ -43,6 +43,10 @@
 inline float roundf(float x) { return (x-floorf(x))>0.5 ? ceilf(x) : floorf(x); }
 #endif
 
+#elif defined(__APPLE__)
+#include <ApplicationServices/ApplicationServices.h>
+#include <unistd.h>
+#include <chrono>
 #else	// WIN32
 //
 // Linux
@@ -82,14 +86,14 @@ void sleep_milliseconds(unsigned ms)
 CMouseControl::CMouseControl (void* pDisplay)
 : m_enabledRestrictedWorkingArea(false)
 , m_enabledWrapPointer(false)
-#if !defined(WIN32)
+#if !defined(WIN32) && !defined(__APPLE__)
 , m_closeDisplay(false)
 #endif
 {
 	m_leftPercent= m_rightPercent= m_topPercent= m_bottomPercent= 1.0f;
         
 	// Under Windows display parameter is ignored
-	#if defined(WIN32)
+	#if defined(WIN32) || defined(__APPLE__)
 	assert (pDisplay== NULL);
 	#else
 	if (pDisplay) m_pDisplay= pDisplay;
@@ -120,7 +124,7 @@ CMouseControl::CMouseControl (void* pDisplay)
 
 CMouseControl::~CMouseControl()
 {
-#if !defined(WIN32)
+#if !defined(WIN32) && !defined(__APPLE__)
 	if (m_closeDisplay) XCloseDisplay(static_cast<Display*>(m_pDisplay));
 #endif
 }
@@ -135,6 +139,11 @@ void CMouseControl::GetScreenSize()
 
 	m_ScreenHeight= devMode.dmPelsHeight;
 	m_ScreenWidth= devMode.dmPelsWidth;
+#elif defined(__APPLE__)
+    // Quartz event coordinates use logical points, not Retina pixels.
+    const CGRect bounds = CGDisplayBounds(CGMainDisplayID());
+    m_ScreenWidth = static_cast<int>(bounds.size.width);
+    m_ScreenHeight = static_cast<int>(bounds.size.height);
 #else // Linux
 	m_ScreenHeight= 
 		DisplayHeight (static_cast<Display*>(m_pDisplay), DefaultScreen (static_cast<Display*>(m_pDisplay)));
@@ -158,6 +167,12 @@ void CMouseControl::GetPointerLocation (int& x, int& y)
 
 	x= (int) pci.ptScreenPos.x;
 	y= (int) pci.ptScreenPos.y;
+#elif defined(__APPLE__)
+    CGEventRef event = CGEventCreate(nullptr);
+    const CGPoint point = event ? CGEventGetLocation(event) : CGPointZero;
+    if (event) CFRelease(event);
+    x = static_cast<int>(point.x);
+    y = static_cast<int>(point.y);
 
 #else // Linux
 	
@@ -422,6 +437,42 @@ void CMouseControl::SendMouseCommand (long x, long y, int flags)
 	ip.mi.dy= y;
 
 	SendInput(1, &ip, sizeof(ip));
+#elif defined(__APPLE__)
+    // Never attempt to post events before the user has granted Accessibility.
+    if (!AXIsProcessTrusted()) return;
+    int currentX, currentY;
+    GetPointerLocation(currentX, currentY);
+    CGPoint point = CGPointMake(currentX, currentY);
+    CGEventType type = kCGEventMouseMoved;
+    CGMouseButton button = kCGMouseButtonLeft;
+    static bool leftDown = false, rightDown = false, middleDown = false;
+    static double lastLeftClick = 0;
+    static CGPoint lastClickPoint = CGPointZero;
+    static int clickCount = 1;
+    if (flags == MOUSE_MOVE_ABS) point = CGPointMake(x, y);
+    else if (flags == MOUSE_MOVE_REL) point = CGPointMake(currentX + x, currentY + y);
+    else if (flags == MOUSE_LEFTDOWN) {
+        type = kCGEventLeftMouseDown; leftDown = true;
+        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        clickCount = (now-lastLeftClick < 0.5 && std::abs(point.x-lastClickPoint.x)<4 && std::abs(point.y-lastClickPoint.y)<4) ? clickCount+1 : 1;
+        lastLeftClick = now; lastClickPoint = point;
+    } else if (flags == MOUSE_LEFTUP) { type = kCGEventLeftMouseUp; leftDown = false; }
+    else if (flags == MOUSE_RIGHTDOWN) { type = kCGEventRightMouseDown; button = kCGMouseButtonRight; rightDown = true; }
+    else if (flags == MOUSE_RIGHTUP) { type = kCGEventRightMouseUp; button = kCGMouseButtonRight; rightDown = false; }
+    else if (flags == MOUSE_MIDDLEDOWN) { type = kCGEventOtherMouseDown; button = kCGMouseButtonCenter; middleDown = true; }
+    else if (flags == MOUSE_MIDDLEUP) { type = kCGEventOtherMouseUp; button = kCGMouseButtonCenter; middleDown = false; }
+    if (type == kCGEventMouseMoved) {
+        if (leftDown) type = kCGEventLeftMouseDragged;
+        else if (rightDown) { type = kCGEventRightMouseDragged; button = kCGMouseButtonRight; }
+        else if (middleDown) { type = kCGEventOtherMouseDragged; button = kCGMouseButtonCenter; }
+    }
+    CGEventRef event = CGEventCreateMouseEvent(nullptr, type, point, button);
+    if (event) {
+        if (type == kCGEventLeftMouseDown || type == kCGEventLeftMouseUp)
+            CGEventSetIntegerValueField(event, kCGMouseEventClickState, clickCount);
+        CGEventPost(kCGHIDEventTap, event);
+        CFRelease(event);
+    }
 #else
 	if (flags== MOUSE_MOVE_ABS) 
 		// Absolute motion

@@ -28,6 +28,9 @@
 #endif
 
 #include "wxappbar.h"
+#ifdef __APPLE__
+#include "../src/macos/platform.h"
+#endif
 #include "warnbaroverlap.h"
 #ifndef WX_PRECOMP
 #include "wx/wx.h"
@@ -338,6 +341,8 @@ void WXAppBar::SetEntryInTaskBar (bool v)
 	if (!gtkWindow) return;
 
 	gtk_window_set_skip_taskbar_hint (gtkWindow, (v? FALSE : TRUE));
+#elif defined(__APPLE__)
+    (void)v; // Cocoa panels do not create separate Dock entries.
 #else
 	assert (false);
 #endif
@@ -356,6 +361,8 @@ void WXAppBar::SetEntryInPager (bool v)
 	if (!gtkWindow) return;
 	
 	gtk_window_set_skip_pager_hint (gtkWindow, (v? FALSE : TRUE));
+#elif defined(__APPLE__)
+    (void)v;
 #else
 	assert (false);
 #endif
@@ -363,7 +370,7 @@ void WXAppBar::SetEntryInPager (bool v)
 
 void WXAppBar::SetAcceptFocus (bool accept)
 {
-#if defined(__WXMSW__)
+	#if defined(__WXMSW__)
 	// TODO
 	(void)(accept);	// Remove warning
 	//assert (false);
@@ -374,6 +381,8 @@ void WXAppBar::SetAcceptFocus (bool accept)
 	if (!gtkWindow) return;
 	
 	gtk_window_set_accept_focus (gtkWindow, (accept? TRUE : FALSE));
+#elif defined(__APPLE__)
+    eviacam::MacConfigureClickWindow(GetHandle(), accept);
 #else
 	assert (false);
 #endif
@@ -917,6 +926,20 @@ void WXAppBar::SetAutohideModeStep ()
 {
 	//TODO
 }
+#elif defined(__APPLE__)
+// Cocoa uses a floating click panel; it does not reserve a desktop appbar strip.
+void WXAppBar::SetDockedModeStep1() {
+    const wxRect area = wxGetClientDisplayRect();
+    m_X = area.x; m_Y = area.y;
+    m_Width = area.width; m_Height = DoGetBestSize().GetHeight();
+}
+void WXAppBar::SetDockedModeStep2() {
+    SetSize(m_X, m_Y, m_Width, m_Height);
+    eviacam::MacConfigureClickWindow(GetHandle(), false);
+}
+void WXAppBar::UnSetDockedModeStep1() {}
+void WXAppBar::UnSetDockedModeStep2() {}
+void WXAppBar::SetAutohideModeStep() {}
 #endif
 
 bool WXAppBar::Show (bool show)

@@ -25,6 +25,9 @@
 #include "viacamcontroller.h"
 #include "pointeraction.h"
 #include "simplelog.h"
+#ifdef __APPLE__
+#include <ApplicationServices/ApplicationServices.h>
+#endif
 
 
 namespace eviacam {
@@ -192,6 +195,9 @@ int HotkeyManager::FindByKeyboardCode (KeyboardCode kc) const {
 
 bool HotkeyManager::EnableHotKey(HotKey& hk) {
 	bool result= true;
+#ifdef __APPLE__
+    if (!CGPreflightListenEventAccess() && !CGRequestListenEventAccess()) return false;
+#endif
 	if (!hk.IsEnabled()) {
 		#if defined(__WXMSW__)
 			wxWindow* mainWin = wxGetApp().GetController().GetMainWindow();
@@ -215,7 +221,11 @@ void HotkeyManager::DisableHotKey(HotKey& hk) {
 }
 
 void HotkeyManager::HotkeyEventHandler(wxKeyEvent& event) {
+#ifdef __APPLE__
+    KeyboardCode kc = KeyboardCode::FromScanCode(event.GetRawKeyCode());
+#else
 	KeyboardCode kc(event.GetRawKeyCode());
+#endif
 
 	SLOG_DEBUG("HotKey Handler called, KeyboardCode: %d (%s)", kc.get_native(),
 		static_cast<const char*>(kc.GetName().mb_str()));
@@ -232,7 +242,7 @@ void HotkeyManager::HotkeyEventHandler(wxKeyEvent& event) {
 // the main thread. This approach will also make easier the transition to
 // an implementation based on keyboard hooks
 void HotkeyManager::CheckKeyboardStatus() {
-#if defined(__WXGTK__) 
+#if defined(__WXGTK__) || defined(__APPLE__)
 	BEGIN_GUI_CALL_MUTEX()
 	KeyboardCode kc = KeyboardCode::ReadKeyCode();
 	if (kc!= m_lastKeyCode) {

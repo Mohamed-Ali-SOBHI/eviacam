@@ -126,7 +126,7 @@ private:
 	bool m_enabledRestrictedWorkingArea;
 	bool m_enabledWrapPointer;
 	
-#if !defined(WIN32)
+#if !defined(WIN32) && !defined(__APPLE__)
 	bool m_closeDisplay;	// Destructor should close display connection?
 	void* m_pDisplay;
 #endif

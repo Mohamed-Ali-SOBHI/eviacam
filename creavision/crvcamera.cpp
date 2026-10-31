@@ -19,16 +19,15 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/core_c.h>
 #include <opencv2/videoio/videoio_c.h>
-#include <sys/timeb.h>
+#include <chrono>
 #include <sys/types.h>
 #include <cassert>
 
 // Return timestamp in ms
 static long long GetTime (void)
 {
-	struct timeb now;	
-	ftime(&now);
-	return now.time*1000 + now.millitm;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 CCamera::CCamera()

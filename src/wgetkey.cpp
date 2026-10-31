@@ -197,7 +197,11 @@ void WGetKey::OnKeyUp( wxKeyEvent& event )
 		// and
 		// https://msdn.microsoft.com/en-us/library/windows/desktop/gg153546(v=vs.85).aspx
 		wxUint32 rkc= event.GetRawKeyCode();
+#ifdef __APPLE__
+        m_keyCode = KeyboardCode::FromScanCode(rkc);
+#else
 		m_keyCode= KeyboardCode(rkc);
+#endif
 		EndModal(wxID_YES);
 	}
     event.Skip(false);

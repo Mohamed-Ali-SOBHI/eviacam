@@ -20,7 +20,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /////////////////////////////////////////////////////////////////////////////
 
-#ifdef WIN32
+#if defined(WIN32) || defined(__APPLE__)
 #include "crvcamera_cv.h"
 #ifdef EVIACAM_MODERN_CAPTURE
 #define NATIVE_CAM_CLASS CCameraCV

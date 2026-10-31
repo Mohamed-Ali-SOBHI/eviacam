@@ -41,6 +41,11 @@
 #include <wx/fileconf.h>
 #include <wx/string.h>
 #include <wx/filename.h>
+#ifdef __APPLE__
+#include "macos/platform.h"
+#include <wx/msgdlg.h>
+#include <cstdlib>
+#endif
 
 #include "eviacamapp.h"
 #include "paths.h"
@@ -158,7 +163,15 @@ bool EViacamApp::OnInit()
 /* ////@end EViacamApp initialisation */
 
 	// Set up globals (TODO: remove paths.cpp)
+#ifdef __APPLE__
+    eviacam::SetDataDir(wxStandardPaths::Get().GetResourcesDir());
+    if (!std::getenv("EVIACAM_REPLAY") && !eviacam::MacCameraPermission()) {
+        wxMessageBox(_("Allow eViacam YuNet in System Settings > Privacy & Security > Camera, then reopen the application."), "eViacam", wxOK | wxICON_INFORMATION);
+        return false;
+    }
+#else
 	eviacam::SetDataDir(wxStandardPaths::Get().GetDataDir());
+#endif
 	
 	// Initialize sockets support
 	// Note: (Workaround for implementation limitation for wxWidgets up to 2.5.x) 
@@ -234,8 +247,14 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 	}
 #ifdef EVIACAM_MODERN_CAPTURE
     else {
+#ifdef __APPLE__
+        const wxString folder = wxStandardPaths::Get().GetUserDataDir();
+        wxFileName::Mkdir(folder, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+        const wxString path = folder + wxT("/settings.ini");
+#else
         const wxString path = wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPath()
             + wxT("/portable.ini");
+#endif
         wxConfigBase::Set(new wxFileConfig(wxEmptyString, wxEmptyString, path,
                                          wxEmptyString, wxCONFIG_USE_LOCAL_FILE));
     }

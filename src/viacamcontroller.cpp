@@ -35,6 +35,19 @@
 #include "hotkeymanager.h"
 #include "simplelog.h"
 #include "checkupdates_manager.h"
+#ifdef __APPLE__
+#include "macos/platform.h"
+#include <wx/timer.h>
+#include <functional>
+#include <cstdlib>
+namespace {
+class MacCaptureTimer : public wxTimer {
+public:
+    std::function<void()> tick;
+    void Notify() override { tick(); }
+};
+}
+#endif
 
 #include <wx/msgdlg.h>
 #include <wx/choicdlg.h>
@@ -320,6 +333,32 @@ bool CViacamController::Initialize ()
     if (retval) m_configManager->ReadAll();
 	// Create and start worker thread
 	if (retval) {
+	#ifdef __APPLE__
+        // Cocoa widgets must only be accessed on the main thread. Face
+        // detection remains asynchronous; frame processing runs on this timer.
+        if (!m_pCamera->Open()) {
+            wxMessageBox(_("Cannot open the camera. Check Camera permission in System Settings and close other camera applications."), "eViacam", wxOK | wxICON_ERROR);
+            retval = false;
+        } else {
+            auto* timer = new MacCaptureTimer();
+            timer->tick = [this, frames=0, faceSeen=false]() mutable {
+                cv::Mat frame;
+                if (!m_pCamera->QueryFrame(frame) || frame.empty()) return;
+                ProcessImage(frame);
+                m_pMainWindow->GetCamWindow()->DrawCam(frame);
+                faceSeen = faceSeen || m_visionPipeline.IsFaceDetected();
+                if (std::getenv("EVIACAM_SMOKE_TEST") && ++frames == 90) {
+                    const bool ok = faceSeen && std::string(m_visionPipeline.GetDetectorName()) == "YuNet";
+                    fprintf(stdout, "%s frames=90\n", ok ? "MACOS_REPLAY_OK" : "MACOS_REPLAY_FAILED");
+                    fflush(stdout);
+                    m_macCaptureTimer->Stop();
+                    m_pMainWindow->CallAfter([this]() { m_pMainWindow->Close(true); });
+                }
+            };
+            m_macCaptureTimer = timer;
+            timer->Start(33);
+        }
+    #else
 		m_pCaptureThread = new CCaptureThread (m_pCamera, m_pMainWindow->GetCamWindow(), this, wxTHREAD_JOINABLE );	
 		assert (m_pCaptureThread);
 		if (m_pCaptureThread->Create()!= wxTHREAD_NO_ERROR) retval= false;
@@ -329,6 +368,7 @@ bool CViacamController::Initialize ()
 			m_pCaptureThread->SetPriority (WXTHREAD_MAX_PRIORITY);
 			if (m_pCaptureThread->Run() != wxTHREAD_NO_ERROR) retval= false;
 		}
+    #endif
 	}
 
 	// Register track area
@@ -362,6 +402,15 @@ bool CViacamController::Initialize ()
 void CViacamController::Finalize ()
 {
 	SetEnabled (false, true);
+#ifdef __APPLE__
+    if (m_macCaptureTimer) {
+        m_macCaptureTimer->Stop();
+        delete m_macCaptureTimer;
+        m_macCaptureTimer = nullptr;
+        m_configManager->WriteAll();
+        if (m_pCamera) m_pCamera->Close();
+    }
+#endif
 
 	if (m_pCaptureThread) {
 		// Save config
@@ -447,6 +496,12 @@ void CViacamController::ReadProfileData(wxConfigBase* pConfObj)
 
 void CViacamController::SetEnabled (bool value, bool silent, wxWindow* parent)
 {
+#ifdef __APPLE__
+    if (value && !std::getenv("EVIACAM_REPLAY") && !eviacam::MacAccessibilityPermission(true)) {
+        wxMessageBox(_("Allow eViacam YuNet in System Settings > Privacy & Security > Accessibility, then click Enable again."), "eViacam", wxOK | wxICON_INFORMATION, parent);
+        return;
+    }
+#endif
 	if (value!= m_enabled) {
 		if (value== false && !silent) {
 			wxMessageDialog dlg (parent, _("This action will disable eViacam.\nAre you sure?"), _("eViacam warning"), wxICON_EXCLAMATION | wxYES_NO );

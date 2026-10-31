@@ -5,6 +5,7 @@ La branche `master` contient la version Windows compilée et essayée le 31 octo
 petits visages, suivi eViacam existant et lanceurs adaptés aux droits Windows.
 
 - [Fonctionnement, compilation et utilisation](README-YUNET.md)
+- [Version macOS : installation, autorisations et compilation](README-MACOS.md)
 - [Résultats, protocole et limites des tests](RESULTATS-YUNET.md)
 - [Sources du détecteur](src/facedetector.cpp)
 - [Tests sans caméra](tests/)

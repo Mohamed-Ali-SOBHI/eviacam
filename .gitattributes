@@ -1,3 +1,4 @@
 debian/ export-ignore
 rpm/ export-ignore
 ubuntu/ export-ignore
+*.sh text eol=lf
