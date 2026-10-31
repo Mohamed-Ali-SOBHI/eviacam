@@ -1,0 +1,5 @@
+The decorative 3D face mesh is derived from MediaPipe canonical_face_model.obj.
+Copyright The MediaPipe Authors. Licensed under Apache License 2.0; see MEDIAPIPE-LICENSE.txt.
+Source: https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/modules/face_geometry/data/canonical_face_model.obj
+Only positions and triangle indices are retained, with rounded coordinates.
+This illustration does not run face detection. The downloadable application uses YuNet.
