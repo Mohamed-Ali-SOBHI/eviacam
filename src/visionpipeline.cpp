@@ -15,8 +15,6 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /////////////////////////////////////////////////////////////////////////////
 #include "visionpipeline.h"
-#include "eviacamapp.h"
-#include "viacamcontroller.h"
 
 #include "crvimage.h"
 #include "timeutil.h"
@@ -33,6 +31,7 @@
 #include <math.h>
 #include <wx/msgdlg.h>
 #include <wx/stdpaths.h>
+#include <wx/utils.h>
 
 // Constants
 #define DEFAULT_TRACK_AREA_WIDTH_PERCENT 0.50f
@@ -44,28 +43,9 @@
 
 using namespace cv;
 
-static bool safeHaarCascadeLoad(CascadeClassifier& c, const char *fileName) {
-	std::string fileName0(fileName);
-	bool result = false;
-
-	try {
-		result= c.load(fileName0);
-	}
-	catch (cv::Exception& e) {
-		SLOG_WARNING("Cannot load haar cascade: %s", e.what());
-	}
-	catch (...) {
-		SLOG_WARNING("Error loading haar cascade");
-	}
-
-	return result;
-}
-
 CVisionPipeline::CVisionPipeline (wxThreadKind kind) 
 : wxThread (kind)
-// Actually it is not needed all the features a condition object offers, but
-// we use it because we need a timeout based wait call. The associated mutex
-// is not used at all.
+// Frame-ready notifications and shutdown are protected by the condition mutex.
 , m_condition(m_mutex)
 , m_faceLocationStatus(0) // 0 -> not available, 1 -> available
 {
@@ -75,34 +55,20 @@ CVisionPipeline::CVisionPipeline (wxThreadKind kind)
 	m_trackAreaTimeout.SetWaitTimeMs(COLOR_DEGRADATION_TIME);
 
 	//
-	// Load face haarcascade
+	// Load YuNet, with the original Haar detector as an explicit mode/fallback.
 	// 
-	wxString cascadePath (eviacam::GetDataDir() + _T("/haarcascade_frontalface_default.xml"));
-	bool result = safeHaarCascadeLoad(m_faceCascade, cascadePath.mb_str(wxConvUTF8));
-	if (!result) {
-		// For OpenCV 2 on linux
-		result = safeHaarCascadeLoad(m_faceCascade,
-			"/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml");
-	}
-
-	if (!result) {
-		// For OpenCV 3	on linux
-		result = safeHaarCascadeLoad(m_faceCascade,
-			"/usr/share/OpenCV/haarcascades/haarcascade_frontalface_default.xml");
-	}
-
-    if (!result) {
-		// For OpenCV 4	on linux
-		result = safeHaarCascadeLoad(m_faceCascade,
-			"/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml");
-	}
-	
-	if (!result) {
-		wxMessageDialog dlg (NULL, _("The face localization option is not enabled."),
-			_T("Enable Viacam"), wxICON_ERROR | wxOK );
-		dlg.ShowModal();
-		return;
-	}
+    const wxString dataDir = eviacam::GetDataDir();
+    wxString detectorMode;
+    wxGetEnv(wxT("EVIACAM_FACE_DETECTOR"), &detectorMode);
+    m_detectorReady = m_faceDetector.Load(
+        std::string((dataDir + wxT("/haarcascade_frontalface_default.xml")).utf8_str()),
+        std::string((dataDir + wxT("/face_detection_yunet_2023mar.onnx")).utf8_str()),
+        detectorMode == wxT("haar"));
+    if (!m_faceDetector.LastError().empty())
+        SLOG_WARNING("Face detector: %s", m_faceDetector.LastError().c_str());
+    SLOG_INFO("Face detector: %s", m_faceDetector.UsingYuNet() ? "YuNet" : "Haar");
+    if (!m_detectorReady) return;
+    m_yunetActive = m_faceDetector.UsingYuNet();
 
 	// Create and start face detection thread
 	if (Create() == wxTHREAD_NO_ERROR) {
@@ -113,71 +79,76 @@ CVisionPipeline::CVisionPipeline (wxThreadKind kind)
 		SetPriority (WXTHREAD_MIN_PRIORITY);
 #endif
 		m_isRunning= true;
-		Run();
+		m_threadStarted = (Run() == wxTHREAD_NO_ERROR);
+		if (!m_threadStarted) m_isRunning = false;
 	}
 }
 
 CVisionPipeline::~CVisionPipeline () {
-	if (!m_faceCascade.empty()) {
-		m_isRunning= false;
-		m_condition.Signal();
-		Wait();
-	}
+    if (m_threadStarted) {
+        {
+            wxMutexLocker lock(m_mutex);
+            m_isRunning = false;
+            m_condition.Signal();
+        }
+        Wait();
+    }
 }
 
-wxThreadError CVisionPipeline::Create(unsigned int stackSize)
-{
-	return wxThread::Create (stackSize);
+wxThreadError CVisionPipeline::Create(unsigned int stackSize) {
+    return wxThread::Create(stackSize);
 }
 
-// Low-priority secondary thread where face localization occurs
-wxThread::ExitCode CVisionPipeline::Entry( )
-{
-	unsigned long ts1 = 0;
-	for (;;) {
-		m_condition.WaitTimeout(1000);
-		if (!m_isRunning) {
-			break;
-		}
-
-		unsigned long now = CTimeUtil::GetMiliCount();
-		if (now - ts1>= (unsigned long) m_threadPeriod) {
-			ts1 = CTimeUtil::GetMiliCount();
-			if (m_imgPrev.empty()) continue;
-			m_imageCopyMutex.Enter();
-			m_imgPrev.copyTo(m_imgThread);
-			m_imageCopyMutex.Leave();
-
-			ComputeFaceTrackArea(m_imgThread);
-		}
-	}
-	return 0;
+wxThread::ExitCode CVisionPipeline::Entry() {
+    unsigned long lastDetection = 0;
+    while (m_isRunning) {
+        {
+            wxMutexLocker lock(m_mutex);
+            while (m_isRunning && !m_frameReady) m_condition.WaitTimeout(1000);
+            if (!m_isRunning) break;
+            m_frameReady = false;
+        }
+        const unsigned long now = CTimeUtil::GetMiliCount();
+        if (now - lastDetection < static_cast<unsigned long>(m_threadPeriod.load())) continue;
+        lastDetection = now;
+        {
+            wxCriticalSectionLocker lock(m_imageCopyMutex);
+            m_detectionFrame.copyTo(m_imgThread);
+        }
+        if (!m_imgThread.empty()) ComputeFaceTrackArea(m_imgThread);
+    }
+    return 0;
 }
 
-void CVisionPipeline::ComputeFaceTrackArea (const cv::Mat& image)
-{
-	if (!m_trackFace) return;
-	if (m_faceLocationStatus) return;	// Already available
-
-	std::vector<Rect> faces;
-
-	m_faceCascade.detectMultiScale(
-		image, faces, 1.5, 2,
-		cv::CASCADE_FIND_BIGGEST_OBJECT | cv::CASCADE_DO_CANNY_PRUNING,
-		cv::Size(65, 65));
-	
-	if (faces.size()> 0) {
-		m_faceLocation = faces[0];
-		m_faceLocationStatus = 1;
-
-		m_waitTime.Reset();
-		m_trackAreaTimeout.Reset();
-	}
+void CVisionPipeline::ComputeFaceTrackArea(const cv::Mat& image) {
+    if (!m_trackFace) return;
+    const unsigned long started = CTimeUtil::GetMiliCount();
+    cv::Rect previous;
+    {
+        wxCriticalSectionLocker lock(m_faceMutex);
+        if (m_faceLocationStatus) return;
+        if (started - m_faceTimestamp < 1500) previous = m_faceLocation;
+    }
+    try {
+        const bool wasYuNet = m_faceDetector.UsingYuNet();
+        const auto faces = m_faceDetector.Detect(image);
+        m_yunetActive = m_faceDetector.UsingYuNet();
+        if (wasYuNet && !m_faceDetector.UsingYuNet())
+            SLOG_WARNING("YuNet failed; using Haar: %s", m_faceDetector.LastError().c_str());
+        const cv::Rect selected = wasYuNet ? eviacam::FaceDetector::Select(faces, previous)
+                                          : (faces.empty() ? cv::Rect() : faces.front().box);
+        if (selected.area() > 0) {
+            wxCriticalSectionLocker lock(m_faceMutex);
+            m_faceLocation = selected;
+            m_faceTimestamp = started;
+            m_faceLocationStatus = 1;
+        }
+    } catch (const cv::Exception& e) { SLOG_WARNING("Face detection: %s", e.what()); }
 }
 
 bool CVisionPipeline::IsFaceDetected () const
 {
-	return !m_waitTime.HasExpired();
+	return m_hasDetectedFace && !m_waitTime.HasExpired();
 }
 
 static 
@@ -191,20 +162,29 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 	cv::Rect2f trackArea;
 	bool updateFeatures = false;
 
-	// Face location has been updated?
-	if (m_faceLocationStatus) {
-		trackArea = m_faceLocation;
-		m_faceLocationStatus = 0;
-		updateFeatures = true;
-	}
-	else {
-		cv::Rect box;
-		m_trackArea.GetBoxImg(image, box);
-		trackArea = box;
-				
-        // Need to update corners?
-		if (m_corners.size()< NUM_CORNERS) updateFeatures = true;
-	}	
+    cv::Rect box;
+    m_trackArea.GetBoxImg(image, box);
+    trackArea = box;
+    updateFeatures = m_corners.size() < NUM_CORNERS;
+    {
+        wxCriticalSectionLocker lock(m_faceMutex);
+        if (m_faceLocationStatus) {
+            if (CTimeUtil::GetMiliCount() - m_faceTimestamp <= 500 && m_trackFace) {
+                trackArea = m_faceLocation & cv::Rect(0, 0, image.cols, image.rows);
+                updateFeatures = true;
+                m_waitTime.Reset();
+                m_trackAreaTimeout.Reset();
+                m_hasDetectedFace = true;
+            }
+            m_faceLocationStatus = 0;
+        }
+    }
+    trackArea = cv::Rect(trackArea) & cv::Rect(0, 0, image.cols, image.rows);
+    if (trackArea.width < 12 || trackArea.height < 12) {
+        xVel = yVel = 0;
+        m_corners.clear();
+        return;
+    }
 
 	if (updateFeatures) {
 		// 
@@ -230,7 +210,7 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 		
         goodFeaturesToTrack(prevImg, m_corners, NUM_CORNERS, QUALITY_LEVEL, MIN_DISTANTE);
         TermCriteria termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.03);
-        if (m_corners.size()) {
+        if (m_corners.size() && prevImg.cols >= 15 && prevImg.rows >= 15) {
 		    cornerSubPix(prevImg, m_corners, Size(5, 5), Size(-1, -1), termcrit);
         }
 		
@@ -328,27 +308,34 @@ void CVisionPipeline::NewTracker(cv::Mat &image, float &xVel, float &yVel)
 
 bool CVisionPipeline::ProcessImage (cv::Mat& image, float& xVel, float& yVel)
 {
+	xVel = yVel = 0;
+	if (image.empty()) return false;
 	try {
 		cv::cvtColor(image, m_imgCurr, cv::COLOR_BGR2GRAY);
 		
 		// Initialize on first frame
-		if (m_imgPrev.empty()) {
+		if (m_imgPrev.empty() || m_imgPrev.size() != m_imgCurr.size()) {
 			m_imgCurr.copyTo(m_imgPrev);
+			m_corners.clear();
 		}
 		
 		// TODO: fine grained synchronization
-		m_imageCopyMutex.Enter();
+		{
+        wxCriticalSectionLocker lock(m_imageCopyMutex);
+        image.copyTo(m_detectionFrame);
 
 		NewTracker(image, xVel, yVel);
 
 		// Store current image as previous
 		cv::swap(m_imgPrev, m_imgCurr);
-		m_imageCopyMutex.Leave();
+		}
 
 		// Notifies face detection thread when needed
 		if (m_trackFace) {
 			m_trackArea.SetDegradation(255 - m_trackAreaTimeout.PercentagePassed() * 255 / 100);
-			m_condition.Signal();
+			wxMutexLocker lock(m_mutex);
+            m_frameReady = true;
+            m_condition.Signal();
 		}
 
 		if (m_trackFace && m_enableWhenFaceDetected && !IsFaceDetected())
@@ -358,7 +345,10 @@ bool CVisionPipeline::ProcessImage (cv::Mat& image, float& xVel, float& yVel)
 	}
 	catch (const std::exception& e) {
 		SLOG_ERR("Exception: %s\n", e.what());
-		exit(1);
+		xVel = yVel = 0;
+		m_corners.clear();
+		m_imgPrev.release();
+		return false;
 	}
 
 	return false;
@@ -368,7 +358,7 @@ enum ECpuValues { LOWEST = 1500, LOW = 800, NORMAL = 400, HIGH = 100, HIGHEST = 
 
 int CVisionPipeline::GetCpuUsage ()
 {
-	switch (m_threadPeriod)
+	switch (m_threadPeriod.load())
 	{
 		case LOWEST:
 			return (int) CVisionPipeline::ECpuUsage(CPU_LOWEST);
@@ -418,7 +408,7 @@ void CVisionPipeline::SetThreadPeriod (int value)
 			m_threadPeriod= LOWEST;
 			break;
 		case LOW:
-			m_threadPeriod= LOWEST;
+			m_threadPeriod= LOW;
 			break;
 		case HIGH:
 			m_threadPeriod= HIGH;
@@ -452,10 +442,10 @@ void CVisionPipeline::WriteProfileData(wxConfigBase* pConfObj)
 
 	pConfObj->SetPath (_T("motionTracker"));	
 
-	pConfObj->Write(_T("trackFace"), m_trackFace);
+	pConfObj->Write(_T("trackFace"), m_trackFace.load());
 	pConfObj->Write(_T("enableWhenFaceDetected"), m_enableWhenFaceDetected);
 	pConfObj->Write(_T("locateFaceTimeout"), (int) m_waitTime.GetWaitTimeMs());
-	pConfObj->Write(_T("threadPeriod"), (int) m_threadPeriod);
+	pConfObj->Write(_T("threadPeriod"), m_threadPeriod.load());
 
 	m_trackArea.GetSize (width, height);
 	
@@ -483,7 +473,9 @@ void CVisionPipeline::ReadProfileData(wxConfigBase* pConfObj)
 	int threadPeriod = -1;
 
 	pConfObj->SetPath (_T("motionTracker"));
-	pConfObj->Read(_T("trackFace"), &m_trackFace);
+	bool trackFace = m_trackFace.load();
+	pConfObj->Read(_T("trackFace"), &trackFace);
+	m_trackFace = trackFace;
 	pConfObj->Read(_T("enableWhenFaceDetected"), &m_enableWhenFaceDetected);
 	pConfObj->Read(_T("locateFaceTimeout"), &locateFaceTimeout);
 	pConfObj->Read (_T("trackAreaWidth"), &width);

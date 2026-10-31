@@ -483,6 +483,7 @@ if not exist $(TargetDir)haarcascade_frontalface_default.xml copy "$(CVPATH)\sou
     <ClCompile Include="pointeraction.cpp" />
     <ClCompile Include="viacamcontroller.cpp" />
     <ClCompile Include="visionpipeline.cpp" />
+    <ClCompile Include="facedetector.cpp" />
     <ClCompile Include="wabout.cpp" />
     <ClCompile Include="wcameradialog.cpp" />
     <ClCompile Include="wconfiguration.cpp" />

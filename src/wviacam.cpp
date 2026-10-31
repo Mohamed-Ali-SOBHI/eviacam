@@ -380,7 +380,9 @@ void WViacam::OnMenuitemExitClick( wxCommandEvent& event )
 void WViacam::OnCloseWindow( wxCloseEvent& event )
 {
 	event.Skip(false);
-	if (event.CanVeto()) {
+    wxString timedTrial;
+    const bool automaticReturn = wxGetEnv(wxT("EVIACAM_TIMED_TRIAL"), &timedTrial) && timedTrial == wxT("1");
+	if (event.CanVeto() && !automaticReturn) {
 		wxMessageDialog dlg (NULL, _("This action will close the program.\nAre you sure?"), _T("Enable Viacam"), wxICON_EXCLAMATION | wxYES_NO );
 		if (dlg.ShowModal()== wxID_NO) {
 			event.Veto();
@@ -496,6 +498,12 @@ void WViacam::OnToolEnableClick( wxCommandEvent& event )
 
 void WViacam::OnToolEnableUpdate( wxUpdateUIEvent& event )
 {
+    wxString replay;
+    const bool offline = wxGetEnv(wxT("EVIACAM_REPLAY"), &replay) && !replay.empty();
+    const wxString title = wxT("eViacam - ") + wxString::FromUTF8(
+        wxGetApp().GetController().GetVisionPipeline().GetDetectorName())
+        + (offline ? wxT(" - demonstration sans camera") : wxT(" - version d'essai"));
+    if (GetTitle() != title) SetTitle(title);
 	event.Enable (!wxGetApp().GetController().GetEnabled ());
 	event.Skip(false);
 }
@@ -598,7 +606,9 @@ void WViacam::OnToolHelpClick( wxCommandEvent& event )
 		case (wxLANGUAGE_SPANISH_GUATEMALA):
 		case (wxLANGUAGE_SPANISH_HONDURAS):
 		case (wxLANGUAGE_SPANISH_MEXICAN):
+#if !wxCHECK_VERSION(3, 2, 0)
 		case (wxLANGUAGE_SPANISH_MODERN):
+#endif
 		case (wxLANGUAGE_SPANISH_NICARAGUA):
 		case (wxLANGUAGE_SPANISH_PANAMA):
 		case (wxLANGUAGE_SPANISH_PARAGUAY):

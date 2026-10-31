@@ -28,6 +28,7 @@
 //}
 #include <math.h>
 #include <stdio.h>
+#include <cstdlib>
 #include "simplelog.h"
 
 #if defined(WIN32)
@@ -38,7 +39,9 @@
 #include <windows.h>
 #define MOUSE_EXTRA_INFO 69
 
+#if defined(_MSC_VER) && _MSC_VER < 1800
 inline float roundf(float x) { return (x-floorf(x))>0.5 ? ceilf(x) : floorf(x); }
+#endif
 
 #else	// WIN32
 //
@@ -374,6 +377,8 @@ void CMouseControl::DoMovePointerRel (long dx, long dy)
 // Send a mouse control system command
 void CMouseControl::SendMouseCommand (long x, long y, int flags)
 {
+    const char* replay = std::getenv("EVIACAM_REPLAY");
+    if (replay && *replay) return; // Offline tests must never generate input.
 #if defined(WIN32)
 	INPUT ip;
 

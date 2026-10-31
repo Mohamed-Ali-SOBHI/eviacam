@@ -1,0 +1,4 @@
+#define VERSION "2.1.4-YuNet-test"
+#define PACKAGE "eviacam"
+#define COPYRIGHT "© 2008-19"
+#define PUBLISHER "César Mauri Loba"

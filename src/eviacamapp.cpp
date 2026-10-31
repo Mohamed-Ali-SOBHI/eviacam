@@ -40,6 +40,7 @@
 #include <wx/xrc/xmlres.h>
 #include <wx/fileconf.h>
 #include <wx/string.h>
+#include <wx/filename.h>
 
 #include "eviacamapp.h"
 #include "paths.h"
@@ -136,6 +137,7 @@ bool EViacamApp::OnInit()
 
 	// Call default behaviour
 	if (!wxApp::OnInit()) return false;
+    cv::setNumThreads(2);
 
 /* ////@begin EViacamApp initialisation */
 	// Remove the comment markers above and below this block
@@ -222,11 +224,22 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 	wxString custom_config_path;
 	bool custom_config= parser.Found(wxT("c"), &custom_config_path);
 	if (custom_config) {
+        wxFileName configFile(custom_config_path);
+        configFile.MakeAbsolute();
+        custom_config_path = configFile.GetFullPath();
 		wxFileConfig* customFileConfig = new wxFileConfig(wxEmptyString, wxEmptyString,
-                                                          custom_config_path, custom_config_path,
+                                                          custom_config_path, wxEmptyString,
                                                           wxCONFIG_USE_LOCAL_FILE);
 		wxConfigBase::Set(customFileConfig);
 	}
+#ifdef EVIACAM_MODERN_CAPTURE
+    else {
+        const wxString path = wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPath()
+            + wxT("/portable.ini");
+        wxConfigBase::Set(new wxFileConfig(wxEmptyString, wxEmptyString, path,
+                                         wxEmptyString, wxCONFIG_USE_LOCAL_FILE));
+    }
+#endif
 
 	return true;
 }
@@ -238,7 +251,7 @@ bool EViacamApp::OnCmdLineParsed(wxCmdLineParser& parser)
 
 int EViacamApp::OnExit()
 {    
-	m_pController->Finalize();
+    if (m_pController) m_pController->Finalize();
 	delete m_pController;
 	m_pController= NULL;
 

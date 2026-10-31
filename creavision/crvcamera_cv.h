@@ -40,11 +40,18 @@ protected:
 public:
 	static int GetNumDevices();
 	static char *GetDeviceName (unsigned int id);
+#if defined(EVIACAM_MODERN_CAPTURE)
+    bool HasSettingsDialog() override;
+    void ShowSettingsDialog() override;
+#endif
 
 private:
 	int m_Id;
 	unsigned int m_Width, m_Height;
 	float m_FrameRate;
+#if defined(EVIACAM_MODERN_CAPTURE)
+    unsigned long long m_nextReplayTick = 0;
+#endif
 	cv::VideoCapture* m_pCvCapture;
 	static bool g_cvInitialized;
 	static int g_numDevices;

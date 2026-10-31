@@ -229,7 +229,7 @@ CCamera* CViacamController::SetUpCamera()
 
 			wxSingleChoiceDialog choiceDlg(
 				NULL, _("Choose the camera to use"), _T("Enable Viacam"), strArray, 
-				(char**)NULL, wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
+				(void**)NULL, wxDEFAULT_DIALOG_STYLE | wxOK | wxCANCEL | wxCENTRE);
 
 			if (choiceDlg.ShowModal ()!= wxID_OK) return NULL;
 
@@ -316,6 +316,8 @@ bool CViacamController::Initialize ()
 		m_pointerAction= new CPointerAction();
 	}
 		
+    // Load settings before capture starts reading them on another thread.
+    if (retval) m_configManager->ReadAll();
 	// Create and start worker thread
 	if (retval) {
 		m_pCaptureThread = new CCaptureThread (m_pCamera, m_pMainWindow->GetCamWindow(), this, wxTHREAD_JOINABLE );	
@@ -333,8 +335,6 @@ bool CViacamController::Initialize ()
 	if (retval)
 		m_pMainWindow->GetCamWindow()->RegisterControl (m_visionPipeline.GetTrackAreaControl());
 
-	// Load configuration
-	if (retval) m_configManager->ReadAll ();
 
 	// Show main window unless it was set to be minimised at startup
 	if (retval && !m_minimisedAtStartup) m_pMainWindow->Show(true);

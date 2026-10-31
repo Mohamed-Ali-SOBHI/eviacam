@@ -67,3 +67,16 @@ src/gui-autosave.pjd
 
 # Eclipse CDT
 .settings/
+
+# Portable build and generated test data
+build/
+dist/
+tests/data/
+tests/generated/
+.deps/
+
+# Local user settings and runtime output
+portable.ini
+settings-before-test.ini
+demo.ini
+*.log

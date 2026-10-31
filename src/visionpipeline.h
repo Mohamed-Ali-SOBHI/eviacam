@@ -23,6 +23,8 @@
 #include "visiblenormroi.h"
 #include "waittime.h"
 #include "opencv2/objdetect/objdetect.hpp"
+#include "facedetector.h"
+#include <atomic>
 
 #include <wx/thread.h>
 
@@ -63,7 +65,8 @@ public:
 	int GetCpuUsage ();
 	void SetCpuUsage (int value);
 
-	bool IsTrackFaceAllowed () { return (!m_faceCascade.empty()); }	
+	bool IsTrackFaceAllowed () { return m_detectorReady; }
+    const char* GetDetectorName() const { return m_yunetActive ? "YuNet" : "Haar"; }
 
 	CVisibleNormROI* GetTrackAreaControl () { return &m_trackArea; }
 
@@ -75,26 +78,33 @@ public:
 private:
 	CVisibleNormROI m_trackArea;
 
-	bool m_trackFace;
+	std::atomic<bool> m_trackFace;
 	bool m_enableWhenFaceDetected;
-	bool m_isRunning;
+	std::atomic<bool> m_isRunning;
+	bool m_threadStarted = false;
+	bool m_detectorReady = false;
+    std::atomic<bool> m_yunetActive{false};
 
 	CWaitTime m_waitTime;
 	CWaitTime m_trackAreaTimeout;
 		
-	cv::Mat m_imgThread;
+	cv::Mat m_imgThread, m_detectionFrame;
 	cv::Mat m_imgPrev, m_imgCurr;
 	
-	cv::CascadeClassifier m_faceCascade;
-	int m_threadPeriod;
+	eviacam::FaceDetector m_faceDetector;
+	std::atomic<int> m_threadPeriod;
 	
 	wxCriticalSection m_imageCopyMutex;
 	wxMutex m_mutex;
 	wxCondition m_condition;
+	bool m_frameReady = false; // guarded by m_mutex
+	wxCriticalSection m_faceMutex;
 
 	// Face location detection
 	cv::Rect m_faceLocation;
 	int m_faceLocationStatus; // 0 -> not available, 1 -> available
+	unsigned long m_faceTimestamp = 0;
+	bool m_hasDetectedFace = false;
 
 	enum { NUM_CORNERS = 20 };
     std::vector<cv::Point2f> m_corners;

@@ -21,6 +21,12 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <cassert>
+#include <cstdlib>
+#if defined(EVIACAM_MODERN_CAPTURE)
+#include <dshow.h>
+#include <thread>
+#include <chrono>
+#endif
 
 bool CCameraCV::g_cvInitialized= false;
 int CCameraCV::g_numDevices= 0;
@@ -111,7 +117,7 @@ CCameraCV::CCameraCV(int cameraId, unsigned int width, int unsigned height, floa
 	m_FrameRate= fr;
 	m_pCvCapture = new cv::VideoCapture();
 
-#if defined(WIN32)
+#if defined(WIN32) && !defined(EVIACAM_MODERN_CAPTURE)
 	VfwCamFpsWorkaround ();
 #endif
 }
@@ -126,12 +132,24 @@ CCameraCV::~CCameraCV(void)
 bool CCameraCV::DoOpen ()
 {
 	if (m_pCvCapture->isOpened()) return true;	// Already opened
+#if defined(EVIACAM_MODERN_CAPTURE)
+    const char* replay = std::getenv("EVIACAM_REPLAY");
+    if (replay && *replay) {
+        m_nextReplayTick = GetTickCount64();
+        return m_pCvCapture->open(replay);
+    }
+    m_pCvCapture->open(m_Id, cv::CAP_DSHOW);
+#else
 	m_pCvCapture->open(m_Id);
+#endif
 	if (!m_pCvCapture->isOpened()) return false;
 	
 	// Try to set capture parameters although not always works
 	m_pCvCapture->set(cv::CAP_PROP_FRAME_WIDTH, static_cast<double>(m_Width));
 	m_pCvCapture->set(cv::CAP_PROP_FRAME_HEIGHT, static_cast<double>(m_Height));
+#if defined(EVIACAM_MODERN_CAPTURE)
+    m_pCvCapture->set(cv::CAP_PROP_FPS, static_cast<double>(m_FrameRate));
+#endif
 	// The following line does nothing under MS Windows
 	//m_pCvCapture->set(cv::CAP_PROP_FPS, static_cast<double>(m_FrameRate));
 
@@ -148,6 +166,18 @@ bool CCameraCV::DoQueryFrame(cv::Mat& frame)
 	assert (m_pCvCapture->isOpened());
 	if (!m_pCvCapture->isOpened()) return false; // FIXME(silhusk): could remove this check?
 
+#if defined(EVIACAM_MODERN_CAPTURE)
+    const char* replay = std::getenv("EVIACAM_REPLAY");
+    if (replay && *replay) {
+        const auto now = GetTickCount64();
+        if (m_nextReplayTick > now)
+            std::this_thread::sleep_for(std::chrono::milliseconds(m_nextReplayTick - now));
+        m_nextReplayTick = (m_nextReplayTick > now ? m_nextReplayTick : now) + 33;
+        if (m_pCvCapture->read(frame)) return true;
+        m_pCvCapture->set(cv::CAP_PROP_POS_FRAMES, 0);
+        return m_pCvCapture->read(frame);
+    }
+#endif
 	if (!m_pCvCapture->read(frame)) {
 		return false;
 	};
@@ -168,6 +198,48 @@ int CCameraCV::GetNumDevices()
 	if (!g_cvInitialized) {		
 		g_cvInitialized= true; 
 
+#if defined(EVIACAM_MODERN_CAPTURE)
+        const char* replay = std::getenv("EVIACAM_REPLAY");
+        if (replay && *replay) {
+            strcpy(g_deviceNames[0], "Offline video (no camera)");
+            return g_numDevices = 1;
+        }
+        // Enumerate device names without opening a camera or changing its state.
+        const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        ICreateDevEnum* devices = nullptr;
+        IEnumMoniker* enumerator = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_SystemDeviceEnum, nullptr, CLSCTX_INPROC_SERVER,
+                                      IID_ICreateDevEnum, reinterpret_cast<void**>(&devices)))) {
+            if (devices->CreateClassEnumerator(CLSID_VideoInputDeviceCategory, &enumerator, 0) == S_OK) {
+                IMoniker* moniker = nullptr;
+                while (g_numDevices < MAX_CV_DEVICES && enumerator->Next(1, &moniker, nullptr) == S_OK) {
+                    IPropertyBag* properties = nullptr;
+                    sprintf(g_deviceNames[g_numDevices], "Camera (Id:%d)", g_numDevices);
+                    if (SUCCEEDED(moniker->BindToStorage(nullptr, nullptr, IID_IPropertyBag,
+                                                        reinterpret_cast<void**>(&properties)))) {
+                        VARIANT name;
+                        VariantInit(&name);
+                        if (SUCCEEDED(properties->Read(L"FriendlyName", &name, nullptr)) && name.vt == VT_BSTR) {
+                            char friendlyName[256] = {};
+                            WideCharToMultiByte(CP_ACP, 0, name.bstrVal, -1,
+                                                friendlyName, 255, nullptr, nullptr);
+                            snprintf(g_deviceNames[g_numDevices], 50, " (Id:%d) %.38s",
+                                     g_numDevices, friendlyName);
+                            g_deviceNames[g_numDevices][49] = 0;
+                        }
+                        VariantClear(&name);
+                        properties->Release();
+                    }
+                    ++g_numDevices;
+                    moniker->Release();
+                }
+                enumerator->Release();
+            }
+            devices->Release();
+        }
+        if (SUCCEEDED(init)) CoUninitialize();
+#else
+
 		int i;
 		cv::VideoCapture tmpCapture;
 
@@ -181,9 +253,21 @@ int CCameraCV::GetNumDevices()
 			sprintf (g_deviceNames[i], "Camera (Id:%d)", i);
 		}		
 		g_numDevices= i;
+#endif
 	}
 	return g_numDevices;
 }
+
+#if defined(EVIACAM_MODERN_CAPTURE)
+bool CCameraCV::HasSettingsDialog() {
+    const char* replay = std::getenv("EVIACAM_REPLAY");
+    return !(replay && *replay);
+}
+void CCameraCV::ShowSettingsDialog() {
+    if (HasSettingsDialog() && m_pCvCapture->isOpened())
+        m_pCvCapture->set(cv::CAP_PROP_SETTINGS, 0);
+}
+#endif
 
 char* CCameraCV::GetDeviceName (unsigned int id)
 {

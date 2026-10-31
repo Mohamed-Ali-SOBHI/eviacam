@@ -22,8 +22,12 @@
 
 #ifdef WIN32
 #include "crvcamera_cv.h"
+#ifdef EVIACAM_MODERN_CAPTURE
+#define NATIVE_CAM_CLASS CCameraCV
+#else
 #include "crvcamera_wdm.h"
 #define NATIVE_CAM_CLASS CCameraWDM
+#endif
 
 #else // linux
 #include <string.h>
