@@ -8,6 +8,8 @@ elseif(APPLE)
   enable_language(OBJCXX)
   set(CMAKE_OBJCXX_STANDARD 14)
   set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+  # Match the static wxWidgets build produced by build-macos-deps.sh.
+  add_compile_definitions(wxDEBUG_LEVEL=0)
 else()
   message(FATAL_ERROR "This CMake build targets Windows and macOS. Linux users: use autotools.")
 endif()
