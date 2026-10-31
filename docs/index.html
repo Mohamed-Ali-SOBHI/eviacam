@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071d2b">
+  <meta name="description" content="Enable Viacam permet de contrôler le pointeur de la souris avec les mouvements de la tête et une simple webcam.">
+  <meta property="og:title" content="Enable Viacam - Contrôlez la souris avec votre tête">
+  <meta property="og:description" content="Un logiciel libre et accessible pour Windows 10 et 11.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://mohamed-ali-sobhi.github.io/eviacam/assets/eviacam-logo.png">
+  <title>Enable Viacam - Contrôlez la souris avec votre tête</title>
+  <link rel="icon" href="assets/eviacam-logo.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Enable Viacam, accueil">
+      <img src="assets/eviacam-logo.png" alt="" width="42" height="42">
+      <span>Enable Viacam</span>
+    </a>
+    <nav aria-label="Navigation principale">
+      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#telecharger">Télécharger</a>
+      <a href="https://github.com/Mohamed-Ali-SOBHI/eviacam">Code source</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">Logiciel libre d'accessibilité</p>
+        <h1>Bougez la tête.<br>Le pointeur vous suit.</h1>
+        <p class="hero-intro">
+          Contrôlez votre ordinateur avec une webcam, sans matériel spécialisé.
+          Simple à installer, personnalisable et gratuit.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4.1/eviacam-2.1.4.1-windows-x64-setup.exe">
+            Télécharger pour Windows
+            <span>26,6 Mo</span>
+          </a>
+          <a class="text-link" href="#telecharger">Voir les autres options <span aria-hidden="true">↓</span></a>
+        </div>
+        <p class="compatibility">Windows 10 et 11 · 64 bits · Version 2.1.4.1</p>
+      </div>
+
+      <div class="hero-visual" aria-label="Illustration du suivi de la tête par webcam">
+        <div class="camera-shell">
+          <div class="camera-top">
+            <span class="camera-light" aria-hidden="true"></span>
+            <span>CAMÉRA ACTIVE</span>
+            <span>30 FPS</span>
+          </div>
+          <div class="camera-feed" data-camera-feed>
+            <div class="ambient ambient-one"></div>
+            <div class="ambient ambient-two"></div>
+            <div class="person" aria-hidden="true">
+              <div class="head"></div>
+              <div class="shoulders"></div>
+            </div>
+            <div class="tracking-frame" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </div>
+            <div class="motion-path" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="demo-pointer" data-demo-pointer aria-hidden="true">
+              <svg viewBox="0 0 32 40" width="27" height="34">
+                <path d="M4 2v29l7.2-7 5.2 12 5.2-2.3-5.2-11.8H27L4 2Z" fill="white" stroke="#071d2b" stroke-width="2.2" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <p class="tracking-status"><span></span> Visage détecté</p>
+          </div>
+        </div>
+        <p class="visual-caption">Une webcam intégrée ou USB suffit.</p>
+      </div>
+    </section>
+
+    <section class="proof reveal" aria-labelledby="proof-title">
+      <div>
+        <p class="section-index">01</p>
+        <h2 id="proof-title">Pensé pour être utilisable dès le premier lancement.</h2>
+      </div>
+      <div class="feature-lines">
+        <article>
+          <span>Caméra</span>
+          <h3>Choisissez-la par son vrai nom</h3>
+          <p>La webcam intégrée, une caméra USB ou une caméra virtuelle sont clairement identifiées.</p>
+        </article>
+        <article>
+          <span>Mouvement</span>
+          <h3>Réglage précis du pointeur</h3>
+          <p>Vitesse, accélération, lissage et seuil sont ajustables selon votre mobilité.</p>
+        </article>
+        <article>
+          <span>Clic</span>
+          <h3>Cliquez sans bouton physique</h3>
+          <p>Immobilisez le pointeur pour déclencher un clic, un double-clic ou un glisser-déposer.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="workflow reveal" id="fonctionnement" aria-labelledby="workflow-title">
+      <div class="workflow-heading">
+        <p class="section-index">02</p>
+        <h2 id="workflow-title">Trois étapes pour commencer.</h2>
+      </div>
+      <ol>
+        <li>
+          <span>1</span>
+          <div>
+            <h3>Branchez votre caméra</h3>
+            <p>Une webcam standard compatible avec Windows suffit.</p>
+          </div>
+        </li>
+        <li>
+          <span>2</span>
+          <div>
+            <h3>Placez le cadre sur votre visage</h3>
+            <p>Le suivi détecte les mouvements naturels de votre tête.</p>
+          </div>
+        </li>
+        <li>
+          <span>3</span>
+          <div>
+            <h3>Ajustez la sensibilité</h3>
+            <p>Quelques réglages permettent d'atteindre confortablement tout l'écran.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="download reveal" id="telecharger" aria-labelledby="download-title">
+      <div class="download-heading">
+        <p class="section-index">03</p>
+        <h2 id="download-title">Télécharger Enable Viacam.</h2>
+        <p>Version communautaire 2.1.4.1 publiée le 6 juin 2026.</p>
+      </div>
+
+      <div class="download-options">
+        <article>
+          <div>
+            <p class="option-label">Recommandé</p>
+            <h3>Installateur Windows</h3>
+            <p>Installation guidée, raccourci dans le menu Démarrer et désinstallation intégrée.</p>
+          </div>
+          <a class="button button-light" href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4.1/eviacam-2.1.4.1-windows-x64-setup.exe">
+            Télécharger l'installateur
+            <span>26,6 Mo</span>
+          </a>
+          <div class="checksum">
+            <span>SHA-256</span>
+            <code>9a215da3c51f23b1a656e8a6affdd71faea869cc838ce3bc97e69f97e2739e79</code>
+            <button type="button" data-copy-hash="9a215da3c51f23b1a656e8a6affdd71faea869cc838ce3bc97e69f97e2739e79">Copier</button>
+          </div>
+        </article>
+
+        <article>
+          <div>
+            <p class="option-label">Sans installation</p>
+            <h3>Version portable</h3>
+            <p>Décompressez l'archive, conservez tous les fichiers ensemble et lancez eviacam.exe.</p>
+          </div>
+          <a class="button button-outline" href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/download/v2.1.4.1/eviacam-2.1.4.1-windows-x64.zip">
+            Télécharger le ZIP
+            <span>38,5 Mo</span>
+          </a>
+          <div class="checksum">
+            <span>SHA-256</span>
+            <code>bd14ce85c8102c1e7329228aa164ed826d0e8142d4be2486b494ffcca9e2cb62</code>
+            <button type="button" data-copy-hash="bd14ce85c8102c1e7329228aa164ed826d0e8142d4be2486b494ffcca9e2cb62">Copier</button>
+          </div>
+        </article>
+      </div>
+
+      <div class="security-note">
+        <strong>À propos de SmartScreen</strong>
+        <p>Cette version communautaire n'est pas encore signée numériquement. Windows peut afficher un avertissement. Vérifiez le hash SHA-256 avant l'exécution.</p>
+      </div>
+    </section>
+
+    <section class="open-source reveal" aria-labelledby="open-title">
+      <div>
+        <p class="section-index">04</p>
+        <h2 id="open-title">Libre, transparent et améliorable.</h2>
+      </div>
+      <div>
+        <p>Enable Viacam est distribué sous licence GNU GPL v3. Le code source, l'historique des changements et les signalements sont publics.</p>
+        <a class="text-link text-link-dark" href="https://github.com/Mohamed-Ali-SOBHI/eviacam">Explorer le projet sur GitHub <span aria-hidden="true">↗</span></a>
+        <p class="platform-note"><strong>macOS :</strong> une version native est à l'étude, mais aucun téléchargement Mac n'est disponible actuellement.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand" href="#top">
+      <img src="assets/eviacam-logo.png" alt="" width="34" height="34">
+      <span>Enable Viacam</span>
+    </a>
+    <p>Logiciel libre d'accessibilité · GNU GPL v3</p>
+    <a href="https://github.com/Mohamed-Ali-SOBHI/eviacam/releases/tag/v2.1.4.1">Notes de version</a>
+  </footer>
+
+  <div class="copy-toast" role="status" aria-live="polite" data-copy-toast>Hash copié</div>
+</body>
+</html>

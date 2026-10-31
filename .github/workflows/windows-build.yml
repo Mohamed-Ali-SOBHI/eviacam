@@ -1,0 +1,102 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/windows-build.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'creavision/**'
+      - 'simplelog/**'
+      - 'src/**'
+      - 'wxcamwindow/**'
+      - 'wxutil/**'
+      - 'models/**'
+      - 'tests/**'
+      - 'tools/**'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python for offline fixtures
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+          cache: pip
+          cache-dependency-path: tools/requirements-benchmark.txt
+
+      - name: Set up native Windows compiler
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-wxwidgets3.2-msw
+
+      - name: Configure toolchain location
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "EVIACAM_TOOLCHAIN=$(Join-Path $env:MSYS2_LOCATION 'ucrt64')" >> $env:GITHUB_ENV
+
+      - name: Prepare test images without a camera
+        shell: pwsh
+        run: |
+          python -m pip install -r tools/requirements-benchmark.txt
+          if ($LASTEXITCODE) { throw 'Python dependencies failed' }
+          python tools/prepare_benchmark.py
+          if ($LASTEXITCODE) { throw 'Fixture generation failed' }
+
+      - name: Build OpenCV 4.10.0
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .deps | Out-Null
+          Invoke-WebRequest 'https://github.com/opencv/opencv/archive/refs/tags/4.10.0.tar.gz' -OutFile .deps/opencv.tar.gz
+          tar -xzf .deps/opencv.tar.gz -C .deps
+          if ($LASTEXITCODE) { throw 'OpenCV extraction failed' }
+          ./tools/build-opencv.ps1 -Toolchain $env:EVIACAM_TOOLCHAIN
+
+      - name: Compile YuNet application and run camera-free tests
+        shell: pwsh
+        run: ./tools/build-windows.ps1 -Toolchain $env:EVIACAM_TOOLCHAIN
+
+      - name: Package portable application
+        shell: pwsh
+        run: |
+          ./tools/package-portable.ps1 -Toolchain $env:EVIACAM_TOOLCHAIN -Destination dist/eViacam-YuNet
+          Copy-Item README.md,README-YUNET.md,RESULTATS-YUNET.md dist/eViacam-YuNet/
+          Compress-Archive -Path dist/eViacam-YuNet -DestinationPath dist/eViacam-YuNet-windows-x64.zip
+          (Get-FileHash dist/eViacam-YuNet-windows-x64.zip -Algorithm SHA256).Hash | Set-Content dist/SHA256.txt
+
+      - name: Upload portable application
+        uses: actions/upload-artifact@v7
+        with:
+          name: eviacam-yunet-windows-x64
+          path: |
+            dist/eViacam-YuNet-windows-x64.zip
+            dist/SHA256.txt
+          if-no-files-found: error
+
+      - name: Upload build and test logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eviacam-yunet-build-logs
+          path: |
+            .deps/*-opencv.log
+            build/Testing/Temporary/*.log
+          if-no-files-found: ignore
